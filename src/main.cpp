@@ -1,34 +1,28 @@
+#include <Arduino.h>
 #include <WiFi.h>
+#include <Wire.h>
 
-// Configuración de las credenciales WiFi
-const char* ssid = "WIFI1";  // Cambia esto a tu SSID
-const char* password = "del.sel1";  // Cambia esto a tu contraseña
+// Credenciales de la red WiFi
+const char* ssid = "WIFI1";
+const char* password = "del.sel1";
 
-WiFiServer server(80);  // Inicializa el servidor en el puerto 80
+// Inicializa el servidor web en el puerto 80
+WiFiServer server(80);
 
-const int ledPin = 2;  // Pin donde está conectado el LED (cambiar si es necesario)
-
-// Función para enviar la respuesta HTTP
-void sendHttpResponse(WiFiClient client, String content) {
-  client.println("HTTP/1.1 200 OK");
-  client.println("Content-type:text/html");
-  client.println();
-  client.println("<!DOCTYPE HTML>");
-  client.println("<html>" + content + "</html>");
-  client.println();
-}
+// Pin donde está conectado el LED
+const int ledPin = 5; // Cambia el pin según tu configuración
 
 void setup() {
   Serial.begin(115200);  // Inicia la comunicación serial
 
   // Configura el pin del LED como salida
   pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, LOW);  // Asegura que el LED esté apagado inicialmente
+  digitalWrite(ledPin, LOW); // Asegúrate de que el LED está apagado inicialmente
 
-  // Conecta a la red WiFi
+  // Conecta el ESP32 a la red WiFi
   WiFi.begin(ssid, password);
 
-  // Espera a que se conecte a la red WiFi
+  // Espera hasta que el ESP32 esté conectado a la red WiFi
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
     Serial.println("Conectando a WiFi...");
@@ -37,55 +31,75 @@ void setup() {
   Serial.print("Conectado a WiFi. Dirección IP: ");
   Serial.println(WiFi.localIP());
 
-  server.begin();  // Inicia el servidor
+  // Inicia el servidor
+  server.begin();
   Serial.println("Servidor iniciado");
 }
 
 void loop() {
-  WiFiClient client = server.available();  // Espera un cliente
-
+  // Comprueba si hay clientes conectados
+  WiFiClient client = server.available();
   if (client) {
     Serial.println("Nuevo cliente conectado");
 
-    String request = "";
+    String currentLine = "";
+    bool isBlankLine = false;
     while (client.connected()) {
       if (client.available()) {
         char c = client.read();
+        Serial.write(c);
         request += c;
 
-        // Detectar el final de la solicitud HTTP
+        // Detecta el final de la solicitud HTTP
         if (c == '\n') {
-          Serial.println("Petición completa recibida:");
-          Serial.println(request);
+          if (request.length() == 1) {
+            // Procesa la solicitud y extrae el texto
+            String text = getValueFromRequest(request, "text");
 
-          // Extraer el comando de la solicitud HTTP
-          int commandIndex = request.indexOf("/?command=");
-          if (commandIndex != -1) {
-            String command = request.substring(commandIndex + 10, request.indexOf(" ", commandIndex + 10));
-            command.trim();  // Remueve espacios en blanco al inicio y fin
+            if (text.equals("Hola")) {
+              digitalWrite(ledPin, HIGH); // Enciende el LED
+              Serial.println("Texto correcto: LED encendido");
 
-            // Analiza el comando recibido
-            if (command.equalsIgnoreCase("on")) {
-              digitalWrite(ledPin, HIGH);
-              Serial.println("LED Encendido");
-              sendHttpResponse(client, "<h1>LED Encendido</h1>");
-            } else if (command.equalsIgnoreCase("off")) {
-              digitalWrite(ledPin, LOW);
-              Serial.println("LED Apagado");
-              sendHttpResponse(client, "<h1>LED Apagado</h1>");
+              // Responde al cliente
+              client.println("HTTP/1.1 200 OK");
+              client.println("Content-type:text/html");
+              client.println();
+              client.println("<!DOCTYPE HTML>");
+              client.println("<html><h1>LED Encendido</h1></html>");
+              client.println();
             } else {
-              Serial.println("Comando desconocido");
-              sendHttpResponse(client, "<h1>Error: Comando desconocido</h1>");
+              digitalWrite(ledPin, LOW); // Apaga el LED
+              Serial.println("Error: Texto incorrecto");
+
+              // Responde al cliente
+              client.println("HTTP/1.1 200 OK");
+              client.println("Content-type:text/html");
+              client.println();
+              client.println("<!DOCTYPE HTML>");
+              client.println("<html><h1>Error: Texto incorrecto</h1></html>");
+              client.println();
             }
-          } else {
-            Serial.println("Comando no encontrado en la solicitud");
-            sendHttpResponse(client, "<h1>Error: Comando no encontrado</h1>");
+            break;
           }
-          break;  // Salir del bucle de lectura
+          request = ""; // Reinicia la solicitud
         }
       }
     }
     client.stop();
     Serial.println("Cliente desconectado");
   }
+}
+
+// Función para extraer el valor de un parámetro de la solicitud HTTP
+String getValueFromRequest(String request, String parameter) {
+  int start = request.indexOf(parameter + "=");
+  if (start == -1) {
+    return "";
+  }
+  start += parameter.length() + 1;
+  int end = request.indexOf('&', start);
+  if (end == -1) {
+    end = request.indexOf(' ', start);
+  }
+  return request.substring(start, end);
 }

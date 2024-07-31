@@ -1,8 +1,8 @@
 #include <WiFi.h>
 
 // Configuración de las credenciales WiFi
-const char* ssid = "WIFI1";  // Cambia esto a tu SSID
-const char* password = "del.sel1";  // Cambia esto a tu contraseña
+const char* ssid = "WIFI1";      // Cambia esto a tu SSID
+const char* password = "del.sel1"; // Cambia esto a tu contraseña
 
 WiFiServer server(80);  // Inicializa el servidor en el puerto 80
 
@@ -66,11 +66,11 @@ void loop() {
 
             // Analiza el comando recibido
             if (command.equalsIgnoreCase("on")) {
-              digitalWrite(ledPin, HIGH);
+              digitalWrite(ledPin, HIGH); // Enciende el LED
               Serial.println("LED Encendido");
               sendHttpResponse(client, "<h1>LED Encendido</h1>");
             } else if (command.equalsIgnoreCase("off")) {
-              digitalWrite(ledPin, LOW);
+              digitalWrite(ledPin, LOW); // Apaga el LED
               Serial.println("LED Apagado");
               sendHttpResponse(client, "<h1>LED Apagado</h1>");
             } else {

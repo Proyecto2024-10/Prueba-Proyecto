@@ -1,16 +1,11 @@
-#include <WiFi.h>
+#include <Arduino.h>
+#include <SPI.h>
+const int DIR = 23;
+const int STEP = 22;
+const int  steps_per_rev = 200;
 
-// Credenciales de la red WiFi
-const char* ssid = "WIFI1";
-const char* password = "del.sel1";
-
-// Inicializa el servidor web en el puerto 80
-WiFiServer server(80);
-
-// Pin donde está conectado el LED
-const int ledPin = 5; // Cambia el pin según tu configuración
-
-void setup() {
+void setup()
+{
   Serial.begin(115200);
 
   // Configura el pin del LED como salida
@@ -34,70 +29,27 @@ void setup() {
   server.begin();
   Serial.println("Servidor iniciado");
 }
-
-void loop() {
-  // Comprueba si hay clientes conectados
-  WiFiClient client = server.available();
-  if (client) {
-    Serial.println("Nuevo cliente conectado");
-
-    String request = "";
-    while (client.connected()) {
-      if (client.available()) {
-        char c = client.read();
-        Serial.write(c);
-        request += c;
-
-        // Detecta el final de la solicitud HTTP
-        if (c == '\n') {
-          if (request.length() == 1) {
-            // Procesa la solicitud y extrae el texto
-            String text = getValueFromRequest(request, "text");
-
-            if (text.equals("Hola")) {
-              digitalWrite(ledPin, HIGH); // Enciende el LED
-              Serial.println("Texto correcto: LED encendido");
-
-              // Responde al cliente
-              client.println("HTTP/1.1 200 OK");
-              client.println("Content-type:text/html");
-              client.println();
-              client.println("<!DOCTYPE HTML>");
-              client.println("<html><h1>LED Encendido</h1></html>");
-              client.println();
-            } else {
-              digitalWrite(ledPin, LOW); // Apaga el LED
-              Serial.println("Error: Texto incorrecto");
-
-              // Responde al cliente
-              client.println("HTTP/1.1 200 OK");
-              client.println("Content-type:text/html");
-              client.println();
-              client.println("<!DOCTYPE HTML>");
-              client.println("<html><h1>Error: Texto incorrecto</h1></html>");
-              client.println();
-            }
-            break;
-          }
-          request = ""; // Reinicia la solicitud
-        }
-      }
-    }
-    client.stop();
-    Serial.println("Cliente desconectado");
+void loop()
+{
+  digitalWrite(DIR, HIGH);
+  
+  for(int i = 0; i<steps_per_rev; i++)
+  {
+    digitalWrite(STEP, HIGH);
+    delayMicroseconds(2000);
+    digitalWrite(STEP, LOW);
+    delayMicroseconds(2000);
   }
-}
-
-// Función para extraer el valor de un parámetro de la solicitud HTTP
-String getValueFromRequest(String request, String parameter) {
-  int start = request.indexOf(parameter + "=");
-  if (start == -1) {
-    return "";
+  delay(1000); 
+  
+  digitalWrite(DIR, LOW);
+  Serial.println("")
+  for(int i = 0; i<steps_per_rev; i++)
+  {
+    digitalWrite(STEP, HIGH);
+    delayMicroseconds(1000);
+    digitalWrite(STEP, LOW);
+    delayMicroseconds(1000);
   }
-  start += parameter.length() + 1;
-  int end = request.indexOf('&', start);
-  if (end == -1) {
-    end = request.indexOf(' ', start);
-  }
-  return request.substring(start, end);
+  delay(1000);
 }

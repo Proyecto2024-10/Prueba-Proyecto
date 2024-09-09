@@ -1,55 +1,34 @@
-#include <Arduino.h>
-#include <SPI.h>
-const int DIR = 23;
-const int STEP = 22;
-const int  steps_per_rev = 200;
+#include <AccelStepper.h>
 
-void setup()
-{
-  Serial.begin(115200);
+//Pines puestos de ejemplo (no son los que se van a utilizar)
+const int dirPin1 = 15;  // Motor 1 DIR
+const int stepPin1 = 76; // Motor 1 STEP
+const int dirPin2 = 34;  // Motor 2 DIR
+const int stepPin2 = 23; // Motor 2 STEP
+const int dirPin3 = 17;  // Motor 3 DIR
+const int stepPin3 = 18; // Motor 3 STEP
 
-  // Configura el pin del LED como salida
-  pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, LOW); // Asegúrate de que el LED está apagado inicialmente
+AccelStepper motor1(1, stepPin1, dirPin1);
+AccelStepper motor2(1, stepPin2, dirPin2);
+AccelStepper motor3(1, stepPin3, dirPin3);
 
-  // Conecta el ESP32 a la red WiFi
-  WiFi.begin(ssid, password);
+void setup() {
 
-  // Espera hasta que el ESP32 esté conectado a la red WiFi
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Conectando a WiFi...");
-  }
+    motor1.setMaxSpeed(700);      
+    motor1.setAcceleration(300);  
+    motor1.moveTo(600);   
+    motor2.setMaxSpeed(700);     
+    motor2.setAcceleration(300); 
+    motor2.moveTo(600);         
 
-  // Imprime la dirección IP del ESP32
-  Serial.print("Conectado a WiFi. Dirección IP: ");
-  Serial.println(WiFi.localIP());
-
-  // Inicia el servidor
-  server.begin();
-  Serial.println("Servidor iniciado");
+    motor3.setMaxSpeed(700);     
+    motor3.setAcceleration(300);
+    motor3.moveTo(600);           
 }
-void loop()
-{
-  digitalWrite(DIR, HIGH);
-  
-  for(int i = 0; i<steps_per_rev; i++)
-  {
-    digitalWrite(STEP, HIGH);
-    delayMicroseconds(2000);
-    digitalWrite(STEP, LOW);
-    delayMicroseconds(2000);
-  }
-  delay(1000); 
-  
-  digitalWrite(DIR, LOW);
-  Serial.println("")
-  for(int i = 0; i<steps_per_rev; i++)
-  {
-    digitalWrite(STEP, HIGH);
-    delayMicroseconds(1000);
-    digitalWrite(STEP, LOW);
-    delayMicroseconds(1000);
-  }
-  delay(1000);
+
+void loop() {
+   
+    motor1.run();
+    motor2.run();
+    motor3.run();
 }

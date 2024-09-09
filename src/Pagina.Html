@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Motores ESP32</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        h1 {
+            color: #333;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: white;
+            margin: 10px;
+        }
+        #estado {
+            margin-top: 20px;
+            font-size: 20px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>Control de Motores con ESP32</h1>
+    <button onclick="enviarComando('motor1')">Mover Motor 1</button>
+    <br>
+    <button onclick="enviarComando('motor2')">Mover Motor 2</button>
+    <br>
+    <button onclick="enviarComando('motor3')">Mover Motor 3</button>
+
+    <div id="estado">Estado del Motor: Desconocido</div>
+
+    <script>
+        function enviarComando(comando) {
+            fetch(`http://192.168.220.104/?comando=${comando}`)
+                .then(respuesta => respuesta.text())
+                .then(datos => {
+                    document.getElementById('estado').innerHTML = datos;
+                })
+                .catch(error => {
+                    document.getElementById('estado').innerHTML = "Error: No se pudo enviar el comando";
+                    console.error("Error:", error);
+                });
+        }
+    </script>
+</body>
+</html>

@@ -5,7 +5,7 @@
 const char* nombreWifi = "WIFI1";     // Nombre de mi red WiFi
 const char* contrasenaWifi = "del.sel1"; // Contraseña de mi red WiFi
 
-// Pines de ejemplo 
+// Pines de ejemplo 111
 const int DirMotor1 = 15;  
 const int StepMotor1 = 16;       
 const int DirMotor2 = 17;  

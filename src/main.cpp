@@ -9,10 +9,10 @@ enum Estado {
   PERFORAR_BRAILLE
 };
 
-Estado estado = CONECTAR_WIFI;
+Estado estadoActual = CONECTAR_WIFI;
 
-const char* wifiNombre = "WIFI1";
-const char* wifiClave = "del.sel1";
+const char* nombreWifi = "WIFI1";
+const char* contrasenaWifi = "del.sel1";
 
 const int pinServo = 18;
 const int pinMotor = 19;
@@ -45,16 +45,21 @@ const int braille[26][6] = {
     {0, 1, 0, 1, 1, 1}, // w
     {1, 0, 1, 1, 0, 1}, // x
     {1, 0, 1, 1, 1, 1}, // y
-    {1, 0, 1, 0, 1, 1}  // z
+    {1, 0, 1, 0, 1, 1}, // z
 };
 
-WiFiServer server(80);
-WiFiClient client;
-String request = "";
-String texto = "";
-int letra = 0;
+WiFiServer servidor(80);
+WiFiClient clienteActual;
+String peticion = "";
+String textoBraille = "";
+int letraActual = 0;
 
-void enviarPagina(WiFiClient cliente) {
+unsigned long tiempoServo = 0;
+unsigned long tiempoMotor = 0;
+unsigned long tiempoPerforacion = 0;
+const unsigned long intervalo = 500; // Intervalo en milisegundos
+
+void enviarPaginaHTML(WiFiClient cliente) {
   cliente.println("HTTP/1.1 200 OK");
   cliente.println("Content-type:text/html");
   cliente.println();
@@ -83,108 +88,111 @@ void enviarPagina(WiFiClient cliente) {
 }
 
 void conectarWiFi() {
-  Serial.println("Conectando a WiFi...");
-  WiFi.begin(wifiNombre, wifiClave);
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("Conectado a WiFi. IP: " + WiFi.localIP().toString());
-    server.begin();
-    estado = ESPERAR_CLIENTE;
-  } else {
-    Serial.println("Conexión fallida, reintentando...");
-  }
-}
-
-void moverServo(float mm) {
-    int angulo = map(mm, 0, 9, 0, 180);
-    servo.write(angulo);
-    delay(500);
-}
-
-void perforar() {
-    digitalWrite(pinMotor, HIGH);
-    delay(500);
-    digitalWrite(pinMotor, LOW);
-    delay(500);
-}
-
-void escribirBraille(char letra) {
-  int idx = letra - 'a';
-  for (int i = 0; i < 6; i++) {
-    if (braille[idx][i] == 1) {
-      perforar();
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Conectando a WiFi...");
+    WiFi.begin(nombreWifi, contrasenaWifi);
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("Conectado a WiFi. IP: " + WiFi.localIP().toString());
+      servidor.begin();
+      estadoActual = ESPERAR_CLIENTE;
     }
-    moverServo(2 * (i + 1));
   }
+}
+
+void moverServoA(float posicion_mm) {
+    int posicionServo = map(posicion_mm, 0, 9, 0, 180);
+    if (millis() - tiempoServo >= intervalo) {
+        servo.write(posicionServo);
+        tiempoServo = millis();
+    }
+}
+
+void perforarPunto() {
+    if (millis() - tiempoMotor >= intervalo) {
+        static bool motorActivo = false;
+        motorActivo = !motorActivo;
+        digitalWrite(pinMotor, motorActivo ? HIGH : LOW);
+        tiempoMotor = millis();
+    }
+}
+
+void escribirLetraBraille(char letra) {
+    int indice = letra - 'a';
+    for (int i = 0; i < 6; i++) {
+        if (braille[indice][i] == 1) {
+            if (millis() - tiempoPerforacion >= intervalo) {
+                perforarPunto();
+                tiempoPerforacion = millis();
+            }
+        }
+        moverServoA(2 * (i + 1));
+    }
 }
 
 void esperarCliente() {
-  client = server.available();
-  if (client) {
-    Serial.println("Cliente conectado");
-    estado = PROCESAR_PETICION;
-  }
+    clienteActual = servidor.available();
+    if (clienteActual) {
+        Serial.println("Cliente conectado");
+        estadoActual = PROCESAR_PETICION;
+    }
 }
 
 void procesarPeticion() {
-  if (client.connected()) {
-    while (client.available()) {
-      char c = client.read();
-      request += c;
-
-      if (c == '\n') {
-        Serial.println("Petición recibida:");
-        Serial.println(request);
-
-        int idx = request.indexOf("/?texto=");
-        if (idx != -1) {
-          texto = request.substring(idx + 8, request.indexOf(" ", idx + 8));
-          texto.trim();
-          enviarPagina(client);
-          estado = MOVER_SERVO;
-          letra = 0;
+    if (clienteActual.connected()) {
+        while (clienteActual.available()) {
+            char c = clienteActual.read();
+            peticion += c;
+            if (c == '\n') {
+                int indiceTexto = peticion.indexOf("/?texto=");
+                if (indiceTexto != -1) {
+                    textoBraille = peticion.substring(indiceTexto + 8, peticion.indexOf(" ", indiceTexto + 8));
+                    textoBraille.trim();
+                    enviarPaginaHTML(clienteActual);
+                    estadoActual = MOVER_SERVO;
+                    letraActual = 0;
+                }
+                clienteActual.stop();
+                break;
+            }
         }
-        client.stop();
-        break;
-      }
     }
-  }
 }
 
 void moverBraille() {
-  if (letra < texto.length()) {
-    escribirBraille(texto[letra]);
-    letra++;
-    moverServo(9);
-  } else {
-    estado = ESPERAR_CLIENTE;
-  }
+    if (letraActual < textoBraille.length()) {
+        escribirLetraBraille(textoBraille[letraActual]);
+        letraActual++;
+        moverServoA(9);
+    } else {
+        estadoActual = ESPERAR_CLIENTE;
+    }
 }
 
 void setup() {
-  Serial.begin(115200);
-  pinMode(pinMotor, OUTPUT);
-  digitalWrite(pinMotor, LOW);
-  servo.attach(pinServo);
-  moverServo(0);
-  conectarWiFi();
+    Serial.begin(115200);
+    pinMode(pinMotor, OUTPUT);
+    digitalWrite(pinMotor, LOW);
+    servo.attach(pinServo);
+    moverServoA(0);
+    conectarWiFi();
 }
 
 void loop() {
-  switch (estado) {
-    case CONECTAR_WIFI:
-      conectarWiFi();
-      break;
+    switch (estadoActual) {
+        case CONECTAR_WIFI:
+            conectarWiFi();
+            break;
 
-    case ESPERAR_CLIENTE:
-      esperarCliente();
-      break;
+        case ESPERAR_CLIENTE:
+            esperarCliente();
+            break;
 
-    case PROCESAR_PETICION:
-      procesarPeticion();
-      break;
+        case PROCESAR_PETICION:
+            procesarPeticion();
+            break;
 
-    case MOVER_SERVO:
-      moverBraille();
-      break;
-  }
+        case MOVER_SERVO:
+            moverBraille();
+            break;
+    }
 }

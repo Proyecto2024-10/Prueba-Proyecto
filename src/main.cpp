@@ -1,172 +1,190 @@
 #include <WiFi.h>
-#include <AccelStepper.h>
+#include <Servo.h>
 
-// Estados 
 enum Estado {
   CONECTAR_WIFI,
   ESPERAR_CLIENTE,
   PROCESAR_PETICION,
-  MOVER_MOTORES,
-  ESPERAR_MOTORES
+  MOVER_SERVO,
+  PERFORAR_BRAILLE
 };
 
-Estado estadoActual = CONECTAR_WIFI;  
+Estado estado = CONECTAR_WIFI;
 
-const char* nombreWifi = "WIFI1";     // Nombre de mi red WiFi
-const char* contrasenaWifi = "del.sel1"; // Contraseña de mi red WiFi
+const char* wifiNombre = "WIFI1";
+const char* wifiClave = "del.sel1";
 
-// Pines para los motores (ejemplo)
-const int DirMotor1 = 15;
-const int StepMotor1 = 16;
-const int DirMotor2 = 17;
-const int StepMotor2 = 18;
-const int DirMotor3 = 19;
-const int StepMotor3 = 20;
+const int pinServo = 18;
+const int pinMotor = 19;
 
+Servo servo;
 
-AccelStepper motor1(1, StepMotor1, DirMotor1);
-AccelStepper motor2(1, StepMotor2, DirMotor2);
-AccelStepper motor3(1, StepMotor3, DirMotor3);
+const int braille[26][6] = {
+    {1, 0, 0, 0, 0, 0}, // a
+    {1, 1, 0, 0, 0, 0}, // b
+    {1, 0, 0, 1, 0, 0}, // c
+    {1, 0, 0, 1, 1, 0}, // d
+    {1, 0, 0, 0, 1, 0}, // e
+    {1, 1, 0, 1, 0, 0}, // f
+    {1, 1, 0, 1, 1, 0}, // g
+    {1, 1, 0, 0, 1, 0}, // h
+    {0, 1, 0, 1, 0, 0}, // i
+    {0, 1, 0, 1, 1, 0}, // j
+    {1, 0, 1, 0, 0, 0}, // k
+    {1, 1, 1, 0, 0, 0}, // l
+    {1, 0, 1, 1, 0, 0}, // m
+    {1, 0, 1, 1, 1, 0}, // n
+    {1, 0, 1, 0, 1, 0}, // o
+    {1, 1, 1, 1, 0, 0}, // p
+    {1, 1, 1, 1, 1, 0}, // q
+    {1, 1, 1, 0, 1, 0}, // r
+    {0, 1, 1, 1, 0, 0}, // s
+    {0, 1, 1, 1, 1, 0}, // t
+    {1, 0, 1, 0, 0, 1}, // u
+    {1, 1, 1, 0, 0, 1}, // v
+    {0, 1, 0, 1, 1, 1}, // w
+    {1, 0, 1, 1, 0, 1}, // x
+    {1, 0, 1, 1, 1, 1}, // y
+    {1, 0, 1, 0, 1, 1}  // z
+};
 
-WiFiServer servidor(80); 
-WiFiClient clienteActual;  
-String peticion = "";  
+WiFiServer server(80);
+WiFiClient client;
+String request = "";
+String texto = "";
+int letra = 0;
 
-
-void enviarRespuestaHTTP(WiFiClient cliente, String contenido) {
+void enviarPagina(WiFiClient cliente) {
   cliente.println("HTTP/1.1 200 OK");
   cliente.println("Content-type:text/html");
   cliente.println();
   cliente.println("<!DOCTYPE HTML>");
-  cliente.println("<html>" + contenido + "</html>");
+  cliente.println("<html>");
+  cliente.println("<head>");
+  cliente.println("<style>");
+  cliente.println("body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; }");
+  cliente.println("h1 { color: #333; }");
+  cliente.println("form { background-color: white; padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }");
+  cliente.println("input[type='text'] { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; }");
+  cliente.println("input[type='submit'] { background-color: #4CAF50; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; }");
+  cliente.println("input[type='submit']:hover { background-color: #45a049; }");
+  cliente.println("</style>");
+  cliente.println("</head>");
+  cliente.println("<body>");
+  cliente.println("<h1>Convertir Texto a Braille</h1>");
+  cliente.println("<p>Ingresa un texto para convertirlo a braille y perforarlo en la cinta:</p>");
+  cliente.println("<form action=\"/\" method=\"GET\">");
+  cliente.println("<input type=\"text\" name=\"texto\" placeholder=\"Ingresa el texto...\" required>");
+  cliente.println("<input type=\"submit\" value=\"Enviar\">");
+  cliente.println("</form>");
+  cliente.println("</body>");
+  cliente.println("</html>");
   cliente.println();
 }
 
-// Función para conectar a WiFi
 void conectarWiFi() {
-  Serial.print("Conectando a WiFi...");
-  WiFi.begin(nombreWifi, contrasenaWifi);
+  Serial.println("Conectando a WiFi...");
+  WiFi.begin(wifiNombre, wifiClave);
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("Conectado a WiFi. IP: " + WiFi.localIP().toString());
-    servidor.begin(); 
-    estadoActual = ESPERAR_CLIENTE;  
+    server.begin();
+    estado = ESPERAR_CLIENTE;
   } else {
-    Serial.println("Intentando conectar...");
+    Serial.println("Conexión fallida, reintentando...");
   }
 }
 
-// Función para esperar clientes
+void moverServo(float mm) {
+    int angulo = map(mm, 0, 9, 0, 180);
+    servo.write(angulo);
+    delay(500);
+}
+
+void perforar() {
+    digitalWrite(pinMotor, HIGH);
+    delay(500);
+    digitalWrite(pinMotor, LOW);
+    delay(500);
+}
+
+void escribirBraille(char letra) {
+  int idx = letra - 'a';
+  for (int i = 0; i < 6; i++) {
+    if (braille[idx][i] == 1) {
+      perforar();
+    }
+    moverServo(2 * (i + 1));
+  }
+}
+
 void esperarCliente() {
-  clienteActual = servidor.available();  
-  if (clienteActual) {
-    Serial.println("Nuevo cliente conectado");
-    estadoActual = PROCESAR_PETICION;  
-    peticion = "";  
+  client = server.available();
+  if (client) {
+    Serial.println("Cliente conectado");
+    estado = PROCESAR_PETICION;
   }
 }
 
-// Función para procesar la petición HTTP
 void procesarPeticion() {
-  if (clienteActual.connected()) {
-    while (clienteActual.available()) {
-      char c = clienteActual.read();
-      peticion += c;
+  if (client.connected()) {
+    while (client.available()) {
+      char c = client.read();
+      request += c;
 
       if (c == '\n') {
-        Serial.println("Petición completa recibida:");
-        Serial.println(peticion);
+        Serial.println("Petición recibida:");
+        Serial.println(request);
 
-        int indiceComando = peticion.indexOf("/?comando=");
-        if (indiceComando != -1) {
-          String comando = peticion.substring(indiceComando + 10, peticion.indexOf(" ", indiceComando + 10));
-          comando.trim(); 
-
-          // Mover el motor 1
-          if (comando.equalsIgnoreCase("motor1")) {
-            motor1.moveTo(600);
-            enviarRespuestaHTTP(clienteActual, "<h1>Motor 1 movido</h1>");
-          } 
-          // Mover el motor 2
-          else if (comando.equalsIgnoreCase("motor2")) {
-            motor2.moveTo(600);
-            enviarRespuestaHTTP(clienteActual, "<h1>Motor 2 movido</h1>");
-          } 
-          // Mover el motor 3
-          else if (comando.equalsIgnoreCase("motor3")) {
-            motor3.moveTo(600);
-            enviarRespuestaHTTP(clienteActual, "<h1>Motor 3 movido</h1>");
-          } 
-          else {
-            enviarRespuestaHTTP(clienteActual, "<h1>Error: Comando desconocido</h1>");
-          }
-        } else {
-          enviarRespuestaHTTP(clienteActual, "<h1>Error: Comando no encontrado</h1>");
+        int idx = request.indexOf("/?texto=");
+        if (idx != -1) {
+          texto = request.substring(idx + 8, request.indexOf(" ", idx + 8));
+          texto.trim();
+          enviarPagina(client);
+          estado = MOVER_SERVO;
+          letra = 0;
         }
-        clienteActual.stop(); 
-        estadoActual = MOVER_MOTORES;  
+        client.stop();
         break;
       }
     }
-  } else {
-    clienteActual.stop();
-    estadoActual = ESPERAR_CLIENTE; 
   }
 }
 
-// Función para mover los motores
-void moverMotores() {
-
-  motor1.run();
-  motor2.run();
-  motor3.run();
-
-
-  estadoActual = ESPERAR_MOTORES;
-}
-
-// Función para esperar que los motores terminen de moverse
-void esperarMotores() {
-
-  if (!motor1.isRunning() && !motor2.isRunning() && !motor3.isRunning()) {
-    Serial.println("Movimiento de motores completado");
-    estadoActual = ESPERAR_CLIENTE;  
+void moverBraille() {
+  if (letra < texto.length()) {
+    escribirBraille(texto[letra]);
+    letra++;
+    moverServo(9);
+  } else {
+    estado = ESPERAR_CLIENTE;
   }
 }
 
 void setup() {
   Serial.begin(115200);
-
-  // Configuración de los motores
-  motor1.setMaxSpeed(700);
-  motor1.setAcceleration(300);
-  motor2.setMaxSpeed(700);
-  motor2.setAcceleration(300);
-  motor3.setMaxSpeed(700);
-  motor3.setAcceleration(300);
+  pinMode(pinMotor, OUTPUT);
+  digitalWrite(pinMotor, LOW);
+  servo.attach(pinServo);
+  moverServo(0);
+  conectarWiFi();
 }
 
 void loop() {
-  // MEF
-  Serial.println(estadoActual);
-  switch (estadoActual) {
+  switch (estado) {
     case CONECTAR_WIFI:
-      conectarWiFi();  // Conectar a WiFi
+      conectarWiFi();
       break;
 
     case ESPERAR_CLIENTE:
-      esperarCliente();  // Esperar un cliente
+      esperarCliente();
       break;
 
     case PROCESAR_PETICION:
-      procesarPeticion();  // Procesar la petición del cliente
+      procesarPeticion();
       break;
 
-    case MOVER_MOTORES:
-      moverMotores();  // Mover los motores según el comando recibido
-      break;
-
-    case ESPERAR_MOTORES:
-      esperarMotores();  // Esperar hasta que los motores terminen de moverse
+    case MOVER_SERVO:
+      moverBraille();
       break;
   }
 }

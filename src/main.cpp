@@ -1,198 +1,153 @@
 #include <WiFi.h>
-#include <Servo.h>
+#include <WebServer.h>
 
-enum Estado {
-  CONECTAR_WIFI,
-  ESPERAR_CLIENTE,
-  PROCESAR_PETICION,
-  MOVER_SERVO,
-  PERFORAR_BRAILLE
+// Pines de los motores
+#define pinStep1 33
+#define pinDir1 32
+#define pinStep2 4
+#define pinDir2 16
+#define pinStep3 15
+#define pinDir3 2
+
+// Intervalos de tiempo y estado de los pasos para cada motor
+unsigned long tiempoAnterior1 = 0;
+unsigned long tiempoAnterior2 = 0;
+unsigned long tiempoAnterior3 = 0;
+
+const long intervalo = 1;  // 1 milisegundo entre pasos (ajustar según velocidad)
+int estadoPaso1 = LOW;
+int estadoPaso2 = LOW;
+int estadoPaso3 = LOW;
+
+// Configuración de red WiFi
+const char* ssid = "WIFI1";
+const char* password = "del.sel1";
+
+// Inicializar el servidor web
+WebServer server(80);
+
+// Definición de estados de los motores
+enum EstadoMotor {
+    MOTOR_APAGADO,
+    MOTOR_ACTIVO
 };
 
-Estado estadoActual = CONECTAR_WIFI;
+// Variables para el estado de cada motor
+EstadoMotor estadoMotor1 = MOTOR_APAGADO;
+EstadoMotor estadoMotor2 = MOTOR_APAGADO;
+EstadoMotor estadoMotor3 = MOTOR_APAGADO;
 
-const char* nombreWifi = "WIFI1";
-const char* contrasenaWifi = "del.sel1";
-
-const int pinServo = 18;
-const int pinMotor = 19;
-
-Servo servo;
-
-const int braille[26][6] = {
-    {1, 0, 0, 0, 0, 0}, // a
-    {1, 1, 0, 0, 0, 0}, // b
-    {1, 0, 0, 1, 0, 0}, // c
-    {1, 0, 0, 1, 1, 0}, // d
-    {1, 0, 0, 0, 1, 0}, // e
-    {1, 1, 0, 1, 0, 0}, // f
-    {1, 1, 0, 1, 1, 0}, // g
-    {1, 1, 0, 0, 1, 0}, // h
-    {0, 1, 0, 1, 0, 0}, // i
-    {0, 1, 0, 1, 1, 0}, // j
-    {1, 0, 1, 0, 0, 0}, // k
-    {1, 1, 1, 0, 0, 0}, // l
-    {1, 0, 1, 1, 0, 0}, // m
-    {1, 0, 1, 1, 1, 0}, // n
-    {1, 0, 1, 0, 1, 0}, // o
-    {1, 1, 1, 1, 0, 0}, // p
-    {1, 1, 1, 1, 1, 0}, // q
-    {1, 1, 1, 0, 1, 0}, // r
-    {0, 1, 1, 1, 0, 0}, // s
-    {0, 1, 1, 1, 1, 0}, // t
-    {1, 0, 1, 0, 0, 1}, // u
-    {1, 1, 1, 0, 0, 1}, // v
-    {0, 1, 0, 1, 1, 1}, // w
-    {1, 0, 1, 1, 0, 1}, // x
-    {1, 0, 1, 1, 1, 1}, // y
-    {1, 0, 1, 0, 1, 1}, // z
-};
-
-WiFiServer servidor(80);
-WiFiClient clienteActual;
-String peticion = "";
-String textoBraille = "";
-int letraActual = 0;
-
-unsigned long tiempoServo = 0;
-unsigned long tiempoMotor = 0;
-unsigned long tiempoPerforacion = 0;
-const unsigned long intervalo = 500; // Intervalo en milisegundos
-
-void enviarPaginaHTML(WiFiClient cliente) {
-  cliente.println("HTTP/1.1 200 OK");
-  cliente.println("Content-type:text/html");
-  cliente.println();
-  cliente.println("<!DOCTYPE HTML>");
-  cliente.println("<html>");
-  cliente.println("<head>");
-  cliente.println("<style>");
-  cliente.println("body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; }");
-  cliente.println("h1 { color: #333; }");
-  cliente.println("form { background-color: white; padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }");
-  cliente.println("input[type='text'] { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; }");
-  cliente.println("input[type='submit'] { background-color: #4CAF50; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; }");
-  cliente.println("input[type='submit']:hover { background-color: #45a049; }");
-  cliente.println("</style>");
-  cliente.println("</head>");
-  cliente.println("<body>");
-  cliente.println("<h1>Convertir Texto a Braille</h1>");
-  cliente.println("<p>Ingresa un texto para convertirlo a braille y perforarlo en la cinta:</p>");
-  cliente.println("<form action=\"/\" method=\"GET\">");
-  cliente.println("<input type=\"text\" name=\"texto\" placeholder=\"Ingresa el texto...\" required>");
-  cliente.println("<input type=\"submit\" value=\"Enviar\">");
-  cliente.println("</form>");
-  cliente.println("</body>");
-  cliente.println("</html>");
-  cliente.println();
-}
-
-void conectarWiFi() {
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("Conectando a WiFi...");
-    WiFi.begin(nombreWifi, contrasenaWifi);
-    if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("Conectado a WiFi. IP: " + WiFi.localIP().toString());
-      servidor.begin();
-      estadoActual = ESPERAR_CLIENTE;
-    }
-  }
-}
-
-void moverServoA(float posicion_mm) {
-    int posicionServo = map(posicion_mm, 0, 9, 0, 180);
-    if (millis() - tiempoServo >= intervalo) {
-        servo.write(posicionServo);
-        tiempoServo = millis();
+// Función para cambiar el estado de un motor
+void cambiarEstadoMotor(int motor, EstadoMotor nuevoEstado) {
+    switch(motor) {
+        case 1:
+            estadoMotor1 = nuevoEstado;
+            break;
+        case 2:
+            estadoMotor2 = nuevoEstado;
+            break;
+        case 3:
+            estadoMotor3 = nuevoEstado;
+            break;
     }
 }
 
-void perforarPunto() {
-    if (millis() - tiempoMotor >= intervalo) {
-        static bool motorActivo = false;
-        motorActivo = !motorActivo;
-        digitalWrite(pinMotor, motorActivo ? HIGH : LOW);
-        tiempoMotor = millis();
-    }
-}
+// Función que procesa el texto recibido y cambia el estado en consecuencia
+void procesarTexto(String texto) {
+    texto.trim();  // Eliminar espacios en blanco
 
-void escribirLetraBraille(char letra) {
-    int indice = letra - 'a';
-    for (int i = 0; i < 6; i++) {
-        if (braille[indice][i] == 1) {
-            if (millis() - tiempoPerforacion >= intervalo) {
-                perforarPunto();
-                tiempoPerforacion = millis();
-            }
-        }
-        moverServoA(2 * (i + 1));
-    }
-}
-
-void esperarCliente() {
-    clienteActual = servidor.available();
-    if (clienteActual) {
-        Serial.println("Cliente conectado");
-        estadoActual = PROCESAR_PETICION;
-    }
-}
-
-void procesarPeticion() {
-    if (clienteActual.connected()) {
-        while (clienteActual.available()) {
-            char c = clienteActual.read();
-            peticion += c;
-            if (c == '\n') {
-                int indiceTexto = peticion.indexOf("/?texto=");
-                if (indiceTexto != -1) {
-                    textoBraille = peticion.substring(indiceTexto + 8, peticion.indexOf(" ", indiceTexto + 8));
-                    textoBraille.trim();
-                    enviarPaginaHTML(clienteActual);
-                    estadoActual = MOVER_SERVO;
-                    letraActual = 0;
-                }
-                clienteActual.stop();
-                break;
-            }
-        }
-    }
-}
-
-void moverBraille() {
-    if (letraActual < textoBraille.length()) {
-        escribirLetraBraille(textoBraille[letraActual]);
-        letraActual++;
-        moverServoA(9);
+    if (texto == "1") {
+        cambiarEstadoMotor(1, MOTOR_ACTIVO);  // Activa el motor 1
+        server.send(200, "text/plain", "Motor 1 Activado");
+    } else if (texto == "2") {
+        cambiarEstadoMotor(2, MOTOR_ACTIVO);  // Activa el motor 2
+        server.send(200, "text/plain", "Motor 2 Activado");
+    } else if (texto == "3") {
+        cambiarEstadoMotor(3, MOTOR_ACTIVO);  // Activa el motor 3
+        server.send(200, "text/plain", "Motor 3 Activado");
+    } else if (texto == "frenar1") {
+        cambiarEstadoMotor(1, MOTOR_APAGADO);  // Apaga el motor 1
+        server.send(200, "text/plain", "Motor 1 Frenado");
+    } else if (texto == "frenar2") {
+        cambiarEstadoMotor(2, MOTOR_APAGADO);  // Apaga el motor 2
+        server.send(200, "text/plain", "Motor 2 Frenado");
+    } else if (texto == "frenar3") {
+        cambiarEstadoMotor(3, MOTOR_APAGADO);  // Apaga el motor 3
+        server.send(200, "text/plain", "Motor 3 Frenado");
     } else {
-        estadoActual = ESPERAR_CLIENTE;
+        server.send(400, "text/plain", "Comando no válido");
     }
+}
+
+// Ruta de control: recibe el texto enviado desde la página web
+void handleControl() {
+    String texto = server.arg("texto");
+    procesarTexto(texto);  // Procesar el texto ingresado
 }
 
 void setup() {
     Serial.begin(115200);
-    pinMode(pinMotor, OUTPUT);
-    digitalWrite(pinMotor, LOW);
-    servo.attach(pinServo);
-    moverServoA(0);
-    conectarWiFi();
+
+    // Configurar pines de los motores
+    pinMode(pinStep1, OUTPUT);
+    pinMode(pinDir1, OUTPUT);
+    digitalWrite(pinDir1, LOW);  // Inicialmente apagados
+
+    pinMode(pinStep2, OUTPUT);
+    pinMode(pinDir2, OUTPUT);
+    digitalWrite(pinDir2, LOW);  // Inicialmente apagados
+
+    pinMode(pinStep3, OUTPUT);
+    pinMode(pinDir3, OUTPUT);
+    digitalWrite(pinDir3, LOW);  // Inicialmente apagados
+
+    // Conectar a la red WiFi
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        Serial.println("Conectando a WiFi...");
+    }
+    Serial.println("Conectado a WiFi");
+    Serial.print("Dirección IP: ");
+    Serial.println(WiFi.localIP());
+
+    // Configurar rutas del servidor
+    server.on("/control", handleControl);  // Ruta para procesar el texto
+
+    // Iniciar servidor
+    server.begin();
+    Serial.println("Servidor web iniciado");
 }
 
 void loop() {
-    switch (estadoActual) {
-        case CONECTAR_WIFI:
-            conectarWiFi();
-            break;
+    server.handleClient();  // Procesar solicitudes del servidor web
 
-        case ESPERAR_CLIENTE:
-            esperarCliente();
-            break;
+    unsigned long tiempoActual = millis();
 
-        case PROCESAR_PETICION:
-            procesarPeticion();
-            break;
+    // Control del motor 1 con la MEF
+    if (estadoMotor1 == MOTOR_ACTIVO) {
+        if (tiempoActual - tiempoAnterior1 >= intervalo) {
+            tiempoAnterior1 = tiempoActual;
+            estadoPaso1 = !estadoPaso1;
+            digitalWrite(pinStep1, estadoPaso1);
+        }
+    }
 
-        case MOVER_SERVO:
-            moverBraille();
-            break;
+    // Control del motor 2 con la MEF
+    if (estadoMotor2 == MOTOR_ACTIVO) {
+        if (tiempoActual - tiempoAnterior2 >= intervalo) {
+            tiempoAnterior2 = tiempoActual;
+            estadoPaso2 = !estadoPaso2;
+            digitalWrite(pinStep2, estadoPaso2);
+        }
+    }
+
+    // Control del motor 3 con la MEF
+    if (estadoMotor3 == MOTOR_ACTIVO) {
+        if (tiempoActual - tiempoAnterior3 >= intervalo) {
+            tiempoAnterior3 = tiempoActual;
+            estadoPaso3 = !estadoPaso3;
+            digitalWrite(pinStep3, estadoPaso3);
+        }
     }
 }

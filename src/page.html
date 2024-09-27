@@ -1,51 +1,71 @@
-<!DOCTYPE HTML>
-<html>
+<!DOCTYPE html>
+<html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Convertir Texto a Braille</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Motores</title>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; }
-        h1 { color: #333; text-align: center; }
-        .container { max-width: 600px; margin: auto; background-color: white; padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        form { margin: 20px 0; }
-        input[type='text'] { width: calc(100% - 22px); padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; }
-        input[type='submit'] { background-color: #4CAF50; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; }
-        input[type='submit']:hover { background-color: #45a049; }
-        .preview { background-color: #eee; padding: 10px; border-radius: 4px; margin-top: 20px; }
-        .preview h2 { margin-top: 0; }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            text-align: center;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .motor-control {
+            margin: 20px 0;
+        }
+        input {
+            padding: 10px;
+            margin: 5px;
+            width: 200px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        .response {
+            margin-top: 20px;
+            color: #555;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Convertir Texto a Braille</h1>
-        <p>Ingresa un texto para convertirlo a braille y perforarlo en la cinta:</p>
-        <form action="/" method="GET">
-            <input type="text" name="texto" placeholder="Ingresa el texto..." required>
-            <input type="submit" value="Enviar">
-        </form>
-        <div class="preview">
-            <h2>Texto Ingresado:</h2>
-            <p id="textoIngresado">Tu texto será mostrado aquí.</p>
-        </div>
+    <h1>Control de Motores ESP32</h1>
+    <div class="motor-control">
+        <input type="text" id="comando" placeholder="Escriba comando...">
+        <button onclick="enviarComando()">Enviar</button>
+        <div id="respuesta" class="response"></div>
     </div>
 
     <script>
-        // Actualizar la vista previa del texto cuando se envíe el formulario
-        document.querySelector('form').addEventListener('submit', function(event) {
-            event.preventDefault();  // Evitar que el formulario se envíe de manera convencional
-            const texto = document.querySelector('input[name="texto"]').value;
-            document.getElementById('textoIngresado').innerText = texto;
-            // Enviar el formulario de manera asincrónica si es necesario
-            fetch('/', {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams(new FormData(event.target)).toString()
-            }).then(response => response.text())
-              .then(data => {
-                console.log('Petición enviada:', texto);
-                console.log('Respuesta del servidor:', data);
-              });
-        });
+        function enviarComando() {
+            const comando = document.getElementById('comando').value;
+            const xhr = new XMLHttpRequest();
+            xhr.open("GET", `http://192.168.218.104/control?texto=${comando}`, true); // Asegúrate de que la IP sea correcta
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    document.getElementById('respuesta').innerText = xhr.responseText;
+                } else {
+                    document.getElementById('respuesta').innerText = '' + xhr.statusText;
+                }
+            };
+            xhr.onerror = function() {
+                document.getElementById('respuesta').innerText = '';
+            };
+            xhr.send();
+        }
     </script>
 </body>
 </html>

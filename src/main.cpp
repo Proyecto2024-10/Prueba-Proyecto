@@ -7,7 +7,7 @@ unsigned long duracionPulso = 0;
 unsigned long inicioPulso = 0;
 bool enviandoPulso = false;
 
-int angulos[] = {55, 45, 65, 45};  // Patrones de ángulos
+int angulos[] = {55, 45, 35, 45};  // Patrones de ángulos
 int indiceAngulo = 0;
 unsigned long intervaloCambio = 500; // Cambia de ángulo cada 500 ms
 

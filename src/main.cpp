@@ -1,60 +1,41 @@
 #include <WiFi.h>
-#include <AccelStepper.h>
 
+// Credenciales WiFi
+const char* ssid = "CATERPILAR";
+const char* password = "Carranza";
 
-const char* nombreWifi = "WIFI1";     // Nombre de mi red WiFi
-const char* contrasenaWifi = "del.sel1"; // Contraseña de mi red WiFi
+// Definir el pin del LED
+const int ledPin = 2;
 
-// Pines de ejemplo 
-const int DirMotor1 = 15;  
-const int StepMotor1 = 16;       
-const int DirMotor2 = 17;  
-const int StepMotor2 = 18;       
-const int DirMotor3 = 19;  
-const int StepMotor3 = 20;       
-
-
-AccelStepper motor1(1, StepMotor1, DirMotor1);
-AccelStepper motor2(1, StepMotor2, DirMotor2);
-AccelStepper motor3(1, StepMotor3, DirMotor3);
-
-WiFiServer servidor(80);  
-
-void enviarRespuestaHTTP(WiFiClient cliente, String contenido) {
-  cliente.println("HTTP/1.1 200 OK");
-  cliente.println("Content-type:text/html");
-  cliente.println();
-  cliente.println("<!DOCTYPE HTML>");
-  cliente.println("<html>" + contenido + "</html>");
-  cliente.println();
-}
+WiFiServer servidor(80);
 
 void setup() {
   Serial.begin(115200);
 
-  motor1.setMaxSpeed(700);
-  motor1.setAcceleration(300);
-  motor2.setMaxSpeed(700);
-  motor2.setAcceleration(300);
-  motor3.setMaxSpeed(700);
-  motor3.setAcceleration(300);
+  // Configurar el pin del LED como salida
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, LOW);
 
   // Conectar a la red WiFi
-  WiFi.begin(nombreWifi, contrasenaWifi);
+  Serial.println("Conectando a WiFi...");
+  WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
-    Serial.println("Conectando a WiFi...");
+    Serial.println("Conectando...");
   }
-  Serial.print("Conectado a WiFi. IP: ");
+  
+  // Mostrar la IP
+  Serial.println("Conectado a WiFi!");
+  Serial.print("Dirección IP: ");
   Serial.println(WiFi.localIP());
 
-  servidor.begin(); 
-  Serial.println("Servidor iniciado");
+  // Iniciar el servidor web
+  servidor.begin();
 }
 
 void loop() {
-  WiFiClient cliente = servidor.available(); 
-
+  // Esperar a que un cliente se conecte
+  WiFiClient cliente = servidor.available();
   if (cliente) {
     Serial.println("Nuevo cliente conectado");
     String peticion = "";
@@ -63,46 +44,46 @@ void loop() {
         char c = cliente.read();
         peticion += c;
 
+        // Verificar si se recibió la petición completa
         if (c == '\n') {
-          Serial.println("Petición completa recibida:");
+          Serial.println("Petición recibida: ");
           Serial.println(peticion);
 
-          int indiceComando = peticion.indexOf("/?comando=");
-          if (indiceComando != -1) {
-            String comando = peticion.substring(indiceComando + 10, peticion.indexOf(" ", indiceComando + 10));
-            comando.trim(); 
+          // Buscar si el texto "/?texto=" está en la petición
+          int indiceTexto = peticion.indexOf("/?texto=");
+          if (indiceTexto != -1) {
+            // Extraer el texto de la petición
+            String texto = peticion.substring(indiceTexto + 8, peticion.indexOf(" ", indiceTexto));
+            texto.trim();  // Limpiar espacios en blanco
 
-            // Comando para mover el motor 1
-            if (comando.equalsIgnoreCase("motor1")) {
-              motor1.moveTo(600);
-              enviarRespuestaHTTP(cliente, "<h1>Motor 1 movido</h1>");
-            
-            // Comando para mover el motor 2
-            } else if (comando.equalsIgnoreCase("motor2")) {
-              motor2.moveTo(600);
-              enviarRespuestaHTTP(cliente, "<h1>Motor 2 movido</h1>");
-            
-            // Comando para mover el motor 3
-            } else if (comando.equalsIgnoreCase("motor3")) {
-              motor3.moveTo(600);
-              enviarRespuestaHTTP(cliente, "<h1>Motor 3 movido</h1>");
-            
+            // Si el texto es "ON", encender el LED
+            if (texto.equalsIgnoreCase("ON")) {
+              digitalWrite(ledPin, HIGH);
+              enviarRespuestaHTTP(cliente, "<h1>LED ENCENDIDO</h1>");
+            } else if (texto.equalsIgnoreCase("OFF")) {
+              digitalWrite(ledPin, LOW);
+              enviarRespuestaHTTP(cliente, "<h1>LED APAGADO</h1>");
             } else {
-              
-              enviarRespuestaHTTP(cliente, "<h1>Error: Comando desconocido</h1>");
+              enviarRespuestaHTTP(cliente, "<h1>Error: Texto no reconocido</h1>");
             }
           } else {
-            enviarRespuestaHTTP(cliente, "<h1>Error: Comando no encontrado</h1>");
+            enviarRespuestaHTTP(cliente, "<h1>Error: Texto no enviado correctamente</h1>");
           }
-          break;  // Salir del loop
+
+          break;
         }
       }
     }
     cliente.stop();  // Desconectar al cliente
     Serial.println("Cliente desconectado");
   }
+}
 
-  motor1.run();
-  motor2.run();
-  motor3.run();
+void enviarRespuestaHTTP(WiFiClient cliente, String contenido) {
+  cliente.println("HTTP/1.1 200 OK");
+  cliente.println("Content-type:text/html");
+  cliente.println();
+  cliente.println("<!DOCTYPE HTML>");
+  cliente.println("<html>" + contenido + "</html>");
+  cliente.println();
 }

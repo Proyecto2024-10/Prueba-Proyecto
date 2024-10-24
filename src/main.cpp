@@ -9,6 +9,15 @@ const int ledPin = 2;
 
 WiFiServer servidor(80);
 
+
+void enviarRespuestaHTTP(WiFiClient cliente, String contenido) {
+  cliente.println("HTTP/1.1 200 OK");
+  cliente.println("Content-type:text/html");
+  cliente.println();
+  cliente.println("<!DOCTYPE HTML>");
+  cliente.println("<html>" + contenido + "</html>");
+  cliente.println();
+}
 void setup() {
   Serial.begin(115200);
 
@@ -28,7 +37,7 @@ void setup() {
   Serial.println("Conectado a WiFi!");
   Serial.print("Dirección IP: ");
   Serial.println(WiFi.localIP());
-
+  digitalWrite(2, HIGH);
   // Iniciar el servidor web
   servidor.begin();
 }
@@ -77,13 +86,4 @@ void loop() {
     cliente.stop();  // Desconectar al cliente
     Serial.println("Cliente desconectado");
   }
-}
-
-void enviarRespuestaHTTP(WiFiClient cliente, String contenido) {
-  cliente.println("HTTP/1.1 200 OK");
-  cliente.println("Content-type:text/html");
-  cliente.println();
-  cliente.println("<!DOCTYPE HTML>");
-  cliente.println("<html>" + contenido + "</html>");
-  cliente.println();
 }

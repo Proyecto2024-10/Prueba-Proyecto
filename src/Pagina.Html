@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Motores ESP32</title>
+    <title>Control de LED ESP32</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -15,6 +15,12 @@
         h1 {
             color: #333;
         }
+        input[type="text"] {
+            padding: 10px;
+            font-size: 18px;
+            width: 200px;
+            margin: 10px;
+        }
         button {
             padding: 10px 20px;
             font-size: 18px;
@@ -23,7 +29,6 @@
             border-radius: 5px;
             background-color: #4CAF50;
             color: white;
-            margin: 10px;
         }
         #estado {
             margin-top: 20px;
@@ -33,24 +38,23 @@
     </style>
 </head>
 <body>
-    <h1>Control de Motores con ESP32</h1>
-    <button onclick="enviarComando('motor1')">Mover Motor 1</button>
-    <br>
-    <button onclick="enviarComando('motor2')">Mover Motor 2</button>
-    <br>
-    <button onclick="enviarComando('motor3')">Mover Motor 3</button>
+    <h1>Control de LED con ESP32</h1>
 
-    <div id="estado">Estado del Motor: Desconocido</div>
+    <input type="text" id="texto" placeholder="Escribe ON u OFF">
+    <button onclick="enviarTexto()">Enviar Texto</button>
+
+    <div id="estado">Estado del LED: Desconocido</div>
 
     <script>
-        function enviarComando(comando) {
-            fetch(`http://192.168.220.104/?comando=${comando}`)
-                .then(respuesta => respuesta.text())
-                .then(datos => {
-                    document.getElementById('estado').innerHTML = datos;
+        function enviarTexto() {
+            const texto = document.getElementById('texto').value;
+            fetch(`http://192.168.220.104/?texto=${texto}`)
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('estado').innerHTML = data;
                 })
                 .catch(error => {
-                    document.getElementById('estado').innerHTML = "Error: No se pudo enviar el comando";
+                    document.getElementById('estado').innerHTML = "Error: No se pudo enviar el texto";
                     console.error("Error:", error);
                 });
         }

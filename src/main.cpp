@@ -1,100 +1,149 @@
-#include <Arduino.h>
+#include <WiFi.h>
 
-// Pines de los motores paso a paso
+// Credenciales WiFi
+const char* ssid = "CATERPILAR";
+const char* password = "Carranza";
+
+// Definición de pines
 #define stepPin1 33
 #define dirPin1 32
 #define stepPin2 4
-#define dirPin2 16 
+#define dirPin2 16
 #define stepPin3 15
 #define dirPin3 2
 
-// Pines del servo
-#define pinServo 0
+// Variables de control
+unsigned long previousMillis = 0;
+const long movimientoDuracion = 3000;  // Duración de movimiento por motor
+const long pasoIntervalo = 4;  // Intervalo de 4 ms entre pasos
+int motorActual = 0;  // Motor actual a girar
+bool motoresActivos = false;
 
-// Variables para controlar los motores paso a paso
-unsigned long previousMillis1 = 0;
-unsigned long previousMillis2 = 0;
-unsigned long previousMillis3 = 0;
-const long interval = 1;  // 1 milisegundo entre pasos (ajustar según velocidad)
-int stepPin1State = LOW;
-int stepPin2State = LOW;
-int stepPin3State = LOW;
+WiFiServer servidor(80);
 
-// Variables para el control del servo
-unsigned long tiempoAnterior = 0;
-unsigned long duracionPulso = 0;
-unsigned long inicioPulso = 0;
-bool enviandoPulso = false;
+// Funciones
+void conectarWiFi() {
+  Serial.println("Conectando a WiFi...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Conectando...");
+  }
+  Serial.println("Conectado a WiFi!");
+  Serial.print("IP asignada: ");
+  Serial.println(WiFi.localIP());  // Mostrar la IP asignada
+}
 
-int angulos[] = {55, 45, 35, 45};  // Patrones de ángulos del servo
-int indiceAngulo = 0;
-unsigned long intervaloCambio = 500; // Cambia de ángulo cada 500 ms
+void moverMotor(int motor) {
+  int stepPin, dirPin;
+
+  // Seleccionar pines según el motor
+  switch (motor) {
+    case 1:
+      stepPin = stepPin1;
+      dirPin = dirPin1;
+      break;
+    case 2:
+      stepPin = stepPin2;
+      dirPin = dirPin2;
+      break;
+    case 3:
+      stepPin = stepPin3;
+      dirPin = dirPin3;
+      break;
+    default:
+      return;  // No hacer nada si el motor no es válido
+  }
+
+  // Configurar dirección y girar el motor
+  digitalWrite(dirPin, HIGH);  // Fijar dirección del motor
+  digitalWrite(stepPin, HIGH);
+  delayMicroseconds(100);  // Ajustar tiempo para simular un paso
+  digitalWrite(stepPin, LOW);
+  delayMicroseconds(100);  // Ajustar tiempo para simular un paso
+}
+
+void procesarCliente(WiFiClient cliente) {
+  String peticion = "";
+  while (cliente.connected()) {
+    if (cliente.available()) {
+      char c = cliente.read();
+      peticion += c;
+
+      // Verificar si se recibió la petición completa
+      if (c == '\n') {
+        Serial.println("Petición recibida: ");
+        Serial.println(peticion);
+
+        // Verificar si el texto es "ON" o "OFF"
+        if (peticion.indexOf("GET /?texto=ON") != -1) {
+          motoresActivos = true;
+          motorActual = 1;  // Iniciar con el motor 1
+          previousMillis = millis();  // Reiniciar temporizador
+        } else if (peticion.indexOf("GET /?texto=OFF") != -1) {
+          motoresActivos = false;  // Apagar motores
+          // Desactivar todos los pasos
+          digitalWrite(stepPin1, LOW);
+          digitalWrite(stepPin2, LOW);
+          digitalWrite(stepPin3, LOW);
+        }
+
+        // Enviar respuesta HTTP
+        cliente.println("HTTP/1.1 200 OK");
+        cliente.println("Content-type:text/html");
+        cliente.println();
+        cliente.println("<!DOCTYPE HTML>");
+        cliente.println("<html><h1>Control de Motores</h1></html>");
+        break;
+      }
+    }
+  }
+  cliente.stop();  // Desconectar al cliente
+}
 
 void setup() {
-  // Configurar pines de los motores paso a paso
+  Serial.begin(115200);
+
+  // Configurar pines
   pinMode(stepPin1, OUTPUT);
   pinMode(dirPin1, OUTPUT);
-  digitalWrite(dirPin1, HIGH);  // Fijar dirección del Motor 1
-
   pinMode(stepPin2, OUTPUT);
   pinMode(dirPin2, OUTPUT);
-  digitalWrite(dirPin2, HIGH);  // Fijar dirección del Motor 2
-
   pinMode(stepPin3, OUTPUT);
   pinMode(dirPin3, OUTPUT);
-  digitalWrite(dirPin3, HIGH);  // Fijar dirección del Motor 3
-
-  // Configurar pin del servo
-  pinMode(pinServo, OUTPUT);
+  
+  // Conectar a WiFi
+  conectarWiFi();
+  
+  // Iniciar el servidor web
+  servidor.begin();
 }
 
 void loop() {
   unsigned long currentMillis = millis();
 
-  // Control del Motor 1
-  if (currentMillis - previousMillis1 >= interval) {
-    previousMillis1 = currentMillis;
-    stepPin1State = !stepPin1State;
-    digitalWrite(stepPin1, stepPin1State);
-  }
+  // Control de motores secuencialmente
+  if (motoresActivos) {
+    if (currentMillis - previousMillis >= movimientoDuracion) {
+      previousMillis = currentMillis;
 
-  // Control del Motor 2
-  if (currentMillis - previousMillis2 >= interval) {
-    previousMillis2 = currentMillis;
-    stepPin2State = !stepPin2State;
-    digitalWrite(stepPin2, stepPin2State);
-  }
-
-  // Control del Motor 3
-  if (currentMillis - previousMillis3 >= interval) {
-    previousMillis3 = currentMillis;
-    stepPin3State = !stepPin3State;
-    digitalWrite(stepPin3, stepPin3State);
-  }
-
-  // Control del Servo
-  unsigned long tiempoActual = millis();  
-
-  // Si no se está enviando un pulso, iniciamos un nuevo pulso
-  if (!enviandoPulso) {
-    duracionPulso = map(angulos[indiceAngulo], 0, 180, 600, 2400); 
-    inicioPulso = micros();  
-    digitalWrite(pinServo, HIGH);
-    enviandoPulso = true;
-  }
-
-  // Si se ha alcanzado la duración del pulso, apagamos el pin
-  if (enviandoPulso && (micros() - inicioPulso >= duracionPulso)) {
-    digitalWrite(pinServo, LOW);
-    enviandoPulso = false;
-  }
-
-  // Cambiar ángulo cada 500 milisegundos
-  if (tiempoActual - tiempoAnterior >= intervaloCambio) {
-    tiempoAnterior = tiempoActual;
-    indiceAngulo++;
-    if (indiceAngulo >= 4) {
-      indiceAngulo = 0; // Reiniciar el índice después del último ángulo
+      motorActual++;
+      if (motorActual > 3) {
+        motorActual = 1;  // Reiniciar el ciclo
+      }
     }
+    moverMotor(motorActual);
+    delay(pasoIntervalo);  // Esperar 4 ms entre pasos
+  } else {
+    // Desactivar todos los pasos si motoresActivos es false
+    digitalWrite(stepPin1, LOW);
+    digitalWrite(stepPin2, LOW);
+    digitalWrite(stepPin3, LOW);
+  }
+
+  // Verificar solicitudes HTTP
+  WiFiClient cliente = servidor.available();
+  if (cliente) {
+    procesarCliente(cliente);
   }
 }

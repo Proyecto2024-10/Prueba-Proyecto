@@ -3,61 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de LED ESP32</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            padding: 50px;
-            background-color: #f4f4f9;
-            color: #333;
-        }
-        h1 {
-            color: #333;
-        }
-        input[type="text"] {
-            padding: 10px;
-            font-size: 18px;
-            width: 200px;
-            margin: 10px;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 18px;
-            cursor: pointer;
-            border: none;
-            border-radius: 5px;
-            background-color: #4CAF50;
-            color: white;
-        }
-        #estado {
-            margin-top: 20px;
-            font-size: 20px;
-            color: #555;
-        }
-    </style>
+    <title>Enviar Texto al ESP32</title>
 </head>
 <body>
-    <h1>Control de LED con ESP32</h1>
-
-    <input type="text" id="texto" placeholder="Escribe ON u OFF">
-    <button onclick="enviarTexto()">Enviar Texto</button>
-
-    <div id="estado">Estado del LED: Desconocido</div>
+    <h2>Enviar Texto al ESP32</h2>
+    <form id="textoForm">
+        <label for="texto">Ingresa el texto:</label>
+        <input type="text" id="texto" name="texto" required>
+        <button type="submit">Enviar</button>
+    </form>
+    <p id="respuesta"></p>
 
     <script>
-        function enviarTexto() {
-            const texto = document.getElementById('texto').value;
-            fetch(`http://192.168.220.104/?texto=${texto}`)
+        document.getElementById("textoForm").addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            // Capturar el texto ingresado
+            const texto = document.getElementById("texto").value;
+
+            // Enviar la solicitud al ESP32
+            fetch(`http://192.168.137.132/?texto=${encodeURIComponent(texto)}`)
                 .then(response => response.text())
                 .then(data => {
-                    document.getElementById('estado').innerHTML = data;
+                    // Mostrar la respuesta del ESP32 en el navegador
+                    document.getElementById("respuesta").innerText = data;
                 })
                 .catch(error => {
-                    document.getElementById('estado').innerHTML = "Error: No se pudo enviar el texto";
-                    console.error("Error:", error);
+                    console.error("Error al enviar el texto:", error);
+                    document.getElementById("respuesta").innerText = "Error al enviar el texto.";
                 });
-        }
+        });
     </script>
 </body>
 </html>

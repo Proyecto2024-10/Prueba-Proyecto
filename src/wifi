@@ -1,0 +1,29 @@
+#include <WiFi.h>
+
+// Credenciales WiFi
+const char* ssid = "CATERPILAR"; // Reemplaza con tu SSID
+const char* password = "Carranza"; // Reemplaza con tu contraseña
+
+void setup() {
+    Serial.begin(115200); // Iniciar monitor serie
+
+    // Conectar a la red WiFi
+    Serial.println("Conectando a WiFi...");
+    WiFi.begin(ssid, password);
+    
+    // Esperar a que se conecte
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        Serial.println("Conectando...");
+    }
+
+    // Mostrar la IP
+    Serial.println("Conectado a WiFi!");
+    Serial.print("Dirección IP: ");
+    Serial.println(WiFi.localIP());
+}
+
+void loop() {
+    // Aquí puedes agregar más lógica si es necesaria
+    delay(1000); // Pausa para no saturar el monitor serie
+}

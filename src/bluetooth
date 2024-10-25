@@ -1,0 +1,27 @@
+#include <BluetoothSerial.h>
+
+// Configuración de Bluetooth
+BluetoothSerial SerialBT;
+
+void setup() {
+    Serial.begin(115200);  // Iniciar monitor serie
+
+    // Inicializar Bluetooth
+    SerialBT.begin("ESP32_Bluetooth");
+    Serial.println("Esperando conexión Bluetooth...");
+
+    // Esperar a que un cliente Bluetooth se conecte
+    while (!SerialBT.hasClient()) {
+        delay(100);  // Espera por una conexión Bluetooth
+    }
+
+    Serial.println("Cliente Bluetooth conectado.");
+    // Enviar el mensaje "Hola" por Bluetooth
+    SerialBT.println("Hola");  
+    Serial.println("Mensaje 'Hola' enviado por Bluetooth.");
+}
+
+void loop() {
+    // Aquí puedes agregar más lógica si es necesaria
+    delay(100);  // Reduce la carga en el bucle
+}

@@ -1,89 +1,108 @@
 #include <WiFi.h>
+#include <BluetoothSerial.h>
 
 // Credenciales WiFi
 const char* ssid = "CATERPILAR";
 const char* password = "Carranza";
 
-// Definir el pin del LED
-const int ledPin = 2;
+// Configuración de Bluetooth
+BluetoothSerial SerialBT;
 
-WiFiServer servidor(80);
+// Variable para almacenar el texto recibido
+String textoRecibido = "";
 
+// Declaración de la función para enviar texto por Bluetooth
+void enviarTextoBluetooth(String texto);
 
 void enviarRespuestaHTTP(WiFiClient cliente, String contenido) {
-  cliente.println("HTTP/1.1 200 OK");
-  cliente.println("Content-type:text/html");
-  cliente.println();
-  cliente.println("<!DOCTYPE HTML>");
-  cliente.println("<html>" + contenido + "</html>");
-  cliente.println();
+    cliente.println("HTTP/1.1 200 OK");
+    cliente.println("Content-type:text/html");
+    cliente.println();
+    cliente.println("<!DOCTYPE HTML>");
+    cliente.println("<html>" + contenido + "</html>");
+    cliente.println();
 }
+
+void conectarWiFi() {
+    Serial.println("Conectando a WiFi...");
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        Serial.println("Conectando...");
+    }
+
+    Serial.println("Conectado a WiFi!");
+    Serial.print("Dirección IP: ");
+    Serial.println(WiFi.localIP());
+
+    // Iniciar el servidor web
+    WiFiServer servidor(80);
+    servidor.begin();
+    
+    // Esperar a que se conecte un cliente
+    WiFiClient cliente = servidor.available();
+    if (cliente) {
+        Serial.println("Nuevo cliente conectado");
+        String peticion = "";
+        while (cliente.connected()) {
+            if (cliente.available()) {
+                char c = cliente.read();
+                peticion += c;
+
+                if (c == '\n') {
+                    Serial.println("Petición recibida: ");
+                    Serial.println(peticion);
+
+                    int indiceTexto = peticion.indexOf("/?texto=");
+                    if (indiceTexto != -1) {
+                        String texto = peticion.substring(indiceTexto + 8, peticion.indexOf(" ", indiceTexto));
+                        texto.trim();  
+                        textoRecibido = texto;  // Guardar el texto recibido
+
+                        // Enviar respuesta al cliente
+                        enviarRespuestaHTTP(cliente, "<h1>Texto recibido correctamente</h1>");
+
+                        // Enviar texto por Bluetooth
+                        enviarTextoBluetooth(textoRecibido);
+                    } else {
+                        enviarRespuestaHTTP(cliente, "<h1>Error: Texto no enviado correctamente</h1>");
+                    }
+                    break;
+                }
+            }
+        }
+        cliente.stop();  
+        Serial.println("Cliente desconectado");
+    }
+
+    // Desconectar Wi-Fi
+    WiFi.disconnect();
+    Serial.println("Desconectado de WiFi");
+}
+
+void enviarTextoBluetooth(String texto) {
+    SerialBT.begin("ESP32_Bluetooth");
+    Serial.println("Esperando conexión Bluetooth...");
+
+    // Esperar a que un cliente se conecte
+    while (!SerialBT.hasClient()) {
+        delay(100);  // Esperar conexión
+    }
+
+    // Enviar texto por Bluetooth
+    SerialBT.print("Texto recibido: ");
+    SerialBT.println(texto);
+    Serial.println("Texto enviado por Bluetooth.");
+
+    // Desconectar Bluetooth después de enviar
+    SerialBT.end();
+}
+
 void setup() {
-  Serial.begin(115200);
-
-  // Configurar el pin del LED como salida
-  pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, LOW);
-
-  // Conectar a la red WiFi
-  Serial.println("Conectando a WiFi...");
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Conectando...");
-  }
-  
-  // Mostrar la IP
-  Serial.println("Conectado a WiFi!");
-  Serial.print("Dirección IP: ");
-  Serial.println(WiFi.localIP());
-  digitalWrite(2, HIGH);
-  // Iniciar el servidor web
-  servidor.begin();
+    Serial.begin(115200);  // Iniciar monitor serie
+    conectarWiFi();  // Conectar a Wi-Fi
 }
 
 void loop() {
-  // Esperar a que un cliente se conecte
-  WiFiClient cliente = servidor.available();
-  if (cliente) {
-    Serial.println("Nuevo cliente conectado");
-    String peticion = "";
-    while (cliente.connected()) {
-      if (cliente.available()) {
-        char c = cliente.read();
-        peticion += c;
-
-        // Verificar si se recibió la petición completa
-        if (c == '\n') {
-          Serial.println("Petición recibida: ");
-          Serial.println(peticion);
-
-          // Buscar si el texto "/?texto=" está en la petición
-          int indiceTexto = peticion.indexOf("/?texto=");
-          if (indiceTexto != -1) {
-            // Extraer el texto de la petición
-            String texto = peticion.substring(indiceTexto + 8, peticion.indexOf(" ", indiceTexto));
-            texto.trim();  // Limpiar espacios en blanco
-
-            // Si el texto es "ON", encender el LED
-            if (texto.equalsIgnoreCase("ON")) {
-              digitalWrite(ledPin, HIGH);
-              enviarRespuestaHTTP(cliente, "<h1>LED ENCENDIDO</h1>");
-            } else if (texto.equalsIgnoreCase("OFF")) {
-              digitalWrite(ledPin, LOW);
-              enviarRespuestaHTTP(cliente, "<h1>LED APAGADO</h1>");
-            } else {
-              enviarRespuestaHTTP(cliente, "<h1>Error: Texto no reconocido</h1>");
-            }
-          } else {
-            enviarRespuestaHTTP(cliente, "<h1>Error: Texto no enviado correctamente</h1>");
-          }
-
-          break;
-        }
-      }
-    }
-    cliente.stop();  // Desconectar al cliente
-    Serial.println("Cliente desconectado");
-  }
+    delay(100);  // Reduce la carga en el bucle
 }

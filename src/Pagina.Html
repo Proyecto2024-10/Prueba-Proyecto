@@ -22,7 +22,7 @@
             const texto = document.getElementById("texto").value;
 
             // Enviar la solicitud al ESP32
-            fetch(`http://192.168.137.132/?texto=${encodeURIComponent(texto)}`)
+            fetch(`http://192.168.137.6/?texto=${encodeURIComponent(texto)}`)
                 .then(response => response.text())
                 .then(data => {
                     // Mostrar la respuesta del ESP32 en el navegador

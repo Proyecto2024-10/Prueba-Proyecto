@@ -1,108 +1,77 @@
 #include <WiFi.h>
 #include <BluetoothSerial.h>
 
-// Credenciales WiFi
 const char* ssid = "CATERPILAR";
 const char* password = "Carranza";
 
-// Configuración de Bluetooth
 BluetoothSerial SerialBT;
-
-// Variable para almacenar el texto recibido
+WiFiServer servidor(80);  // Servidor en el puerto 80
 String textoRecibido = "";
-
-// Declaración de la función para enviar texto por Bluetooth
-void enviarTextoBluetooth(String texto);
-
-void enviarRespuestaHTTP(WiFiClient cliente, String contenido) {
-    cliente.println("HTTP/1.1 200 OK");
-    cliente.println("Content-type:text/html");
-    cliente.println();
-    cliente.println("<!DOCTYPE HTML>");
-    cliente.println("<html>" + contenido + "</html>");
-    cliente.println();
-}
+bool textoEnviadoPorBT = false;
 
 void conectarWiFi() {
-    Serial.println("Conectando a WiFi...");
     WiFi.begin(ssid, password);
     while (WiFi.status() != WL_CONNECTED) {
-        delay(1000);
-        Serial.println("Conectando...");
+        delay(500);
+        Serial.println("Conectando a WiFi...");
     }
-
     Serial.println("Conectado a WiFi!");
-    Serial.print("Dirección IP: ");
-    Serial.println(WiFi.localIP());
-
-    // Iniciar el servidor web
-    WiFiServer servidor(80);
     servidor.begin();
-    
-    // Esperar a que se conecte un cliente
-    WiFiClient cliente = servidor.available();
-    if (cliente) {
-        Serial.println("Nuevo cliente conectado");
-        String peticion = "";
-        while (cliente.connected()) {
-            if (cliente.available()) {
-                char c = cliente.read();
-                peticion += c;
-
-                if (c == '\n') {
-                    Serial.println("Petición recibida: ");
-                    Serial.println(peticion);
-
-                    int indiceTexto = peticion.indexOf("/?texto=");
-                    if (indiceTexto != -1) {
-                        String texto = peticion.substring(indiceTexto + 8, peticion.indexOf(" ", indiceTexto));
-                        texto.trim();  
-                        textoRecibido = texto;  // Guardar el texto recibido
-
-                        // Enviar respuesta al cliente
-                        enviarRespuestaHTTP(cliente, "<h1>Texto recibido correctamente</h1>");
-
-                        // Enviar texto por Bluetooth
-                        enviarTextoBluetooth(textoRecibido);
-                    } else {
-                        enviarRespuestaHTTP(cliente, "<h1>Error: Texto no enviado correctamente</h1>");
-                    }
-                    break;
-                }
-            }
-        }
-        cliente.stop();  
-        Serial.println("Cliente desconectado");
-    }
-
-    // Desconectar Wi-Fi
-    WiFi.disconnect();
-    Serial.println("Desconectado de WiFi");
 }
 
-void enviarTextoBluetooth(String texto) {
-    SerialBT.begin("ESP32_Bluetooth");
-    Serial.println("Esperando conexión Bluetooth...");
+void recibirTexto() {
+    WiFiClient cliente = servidor.available();
+    
+    if (cliente) {
+        Serial.println("Cliente conectado");
+        String peticion = cliente.readStringUntil('\r');  // Lee la petición completa
+        cliente.flush();
 
-    // Esperar a que un cliente se conecte
-    while (!SerialBT.hasClient()) {
-        delay(100);  // Esperar conexión
+        int indiceTexto = peticion.indexOf("/?texto=");
+        if (indiceTexto != -1) {
+            textoRecibido = peticion.substring(indiceTexto + 8, peticion.indexOf(" ", indiceTexto));
+            textoRecibido.trim();  // Quitar espacios en blanco
+
+            // Respuesta al cliente
+            cliente.println("HTTP/1.1 200 OK");
+            cliente.println("Content-type:text/html");
+            cliente.println();
+            cliente.println("<html><h1>Texto recibido correctamente</h1></html>");
+            Serial.println("Texto recibido: " + textoRecibido);
+            textoEnviadoPorBT = false; // Reset para enviar por Bluetooth
+        } else {
+            Serial.println("No se recibió el texto");
+        }
+        cliente.stop();  // Desconectar al cliente
+        Serial.println("Cliente desconectado");
     }
+}
 
-    // Enviar texto por Bluetooth
-    SerialBT.print("Texto recibido: ");
-    SerialBT.println(texto);
-    Serial.println("Texto enviado por Bluetooth.");
-
-    // Desconectar Bluetooth después de enviar
-    SerialBT.end();
+void enviarTextoBluetooth() {
+    if (!textoRecibido.isEmpty() && !textoEnviadoPorBT) {
+        Serial.println("Enviando texto por Bluetooth...");
+        SerialBT.println("Texto recibido: " + textoRecibido);
+        Serial.println("Texto enviado por Bluetooth.");
+        
+        textoEnviadoPorBT = true;  // Marcar como enviado
+        
+        // Reiniciar textoRecibido para permitir nuevos envíos
+        textoRecibido = "";  // Limpiar el texto recibido
+    }
 }
 
 void setup() {
-    Serial.begin(115200);  // Iniciar monitor serie
-    conectarWiFi();  // Conectar a Wi-Fi
+    Serial.begin(115200);
+    conectarWiFi();
+    SerialBT.begin("ESP32_Bluetooth");  // Iniciar Bluetooth una vez en setup
 }
 
 void loop() {
-    delay(100);  // Reduce la carga en el bucle
+    if (WiFi.status() == WL_CONNECTED) {
+        recibirTexto();  // Recibe el texto desde HTML si está conectado a Wi-Fi
+    }
+
+    enviarTextoBluetooth();  // Envía el texto por Bluetooth si hay uno para enviar
+
+    delay(1000);  // Reducir el intervalo de chequeo
 }

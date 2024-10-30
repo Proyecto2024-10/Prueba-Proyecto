@@ -4,34 +4,148 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enviar Texto al ESP32</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        h2 {
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+
+        label {
+            margin-bottom: 10px;
+            display: block;
+            font-weight: 700;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #4CAF50;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 16px;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: #45a049;
+            outline: none;
+        }
+
+        button {
+            background-color: #4CAF50; /* Verde */
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        button:hover {
+            background-color: #45a049; /* Verde más oscuro */
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        #respuesta {
+            margin-top: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        #confirmacion {
+            margin-top: 20px;
+            color: #e67e22; /* Naranja */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #confirmacion button {
+            margin-top: 10px;
+            background-color: #e74c3c; /* Rojo */
+        }
+
+        #confirmacion button:hover {
+            background-color: #c0392b; /* Rojo más oscuro */
+        }
+    </style>
 </head>
 <body>
-    <h2>Enviar Texto al ESP32</h2>
-    <form id="textoForm">
-        <label for="texto">Ingresa el texto:</label>
-        <input type="text" id="texto" name="texto" required>
-        <button type="submit">Enviar</button>
-    </form>
-    <p id="respuesta"></p>
+    <div class="container">
+        <h2>Enviar Texto al ESP32</h2>
+        <form id="textoForm">
+            <label for="texto">Ingresa el texto:</label>
+            <input type="text" id="texto" name="texto" required>
+            <button id="enviarBtn" type="submit">Enviar</button>
+        </form>
+        <p id="respuesta"></p>
+        <div id="confirmacion" style="display:none;"></div>
+    </div>
 
     <script>
         document.getElementById("textoForm").addEventListener("submit", function(event) {
             event.preventDefault();
 
-            // Capturar el texto ingresado
             const texto = document.getElementById("texto").value;
+            document.getElementById("enviarBtn").disabled = true;
 
-            // Enviar la solicitud al ESP32
-            fetch(`http://192.168.137.6/?texto=${encodeURIComponent(texto)}`)
-                .then(response => response.text())
-                .then(data => {
-                    // Mostrar la respuesta del ESP32 en el navegador
-                    document.getElementById("respuesta").innerText = data;
-                })
-                .catch(error => {
-                    console.error("Error al enviar el texto:", error);
-                    document.getElementById("respuesta").innerText = "Error al enviar el texto.";
-                });
+            const confirmacion = document.getElementById("confirmacion");
+            confirmacion.innerHTML = `
+                <p>¿Está seguro de enviar el siguiente texto: <strong>${texto}</strong>?</p>
+                <button id="confirmarBtn">Confirmar</button>
+                <button id="cancelarBtn">Cancelar</button>
+            `;
+            confirmacion.style.display = "block";
+
+            document.getElementById("confirmarBtn").onclick = function() {
+                fetch(`http://192.168.137.6/?texto=${encodeURIComponent(texto)}`)
+                    .then(response => response.text())
+                    .then(data => {
+                        document.getElementById("respuesta").innerText = data;
+                        document.getElementById("enviarBtn").disabled = false;
+                        confirmacion.style.display = "none";
+                    })
+                    .catch(error => {
+                        console.error("", error);
+                        document.getElementById("respuesta").innerText = "";
+                        document.getElementById("enviarBtn").disabled = false;
+                        confirmacion.style.display = "none";
+                    });
+            };
+
+            document.getElementById("cancelarBtn").onclick = function() {
+                confirmacion.style.display = "none";
+                document.getElementById("enviarBtn").disabled = false;
+            };
         });
     </script>
 </body>

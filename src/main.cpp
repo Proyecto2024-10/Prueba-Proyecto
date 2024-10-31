@@ -18,7 +18,10 @@ void conectarWiFi() {
         Serial.println("Conectando a WiFi...");
     }
     Serial.println("Conectado a WiFi!");
+    Serial.print("Dirección IP: ");
+    Serial.println(WiFi.localIP());
     servidor.begin();
+    
 }
 
 void recibirTexto() {

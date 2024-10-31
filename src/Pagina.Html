@@ -127,7 +127,7 @@
             confirmacion.style.display = "block";
 
             document.getElementById("confirmarBtn").onclick = function() {
-                fetch(`http://192.168.137.6/?texto=${encodeURIComponent(texto)}`)
+                fetch(`http://192.168.137.67/?texto=${encodeURIComponent(texto)}`)
                     .then(response => response.text())
                     .then(data => {
                         document.getElementById("respuesta").innerText = data;

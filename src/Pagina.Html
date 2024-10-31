@@ -152,7 +152,7 @@
                     })
                     .catch(error => {
                         console.error("Error:", error);
-                        document.getElementById("respuesta").innerText = "Error al enviar";
+                        document.getElementById("respuesta").innerText = "";
                         document.getElementById("enviarBtn").disabled = false;
                         confirmacion.style.display = "none";
                     });

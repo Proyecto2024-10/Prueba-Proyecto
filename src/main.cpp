@@ -5,23 +5,38 @@ const char* ssid = "CATERPILAR";
 const char* password = "Carranza";
 
 BluetoothSerial SerialBT;
-WiFiServer servidor(80);  // Servidor en el puerto 80
+WiFiServer servidor(80);
 String textoRecibido = "";
 bool textoEnviadoPorBT = false;
 
-const int ledPin = 2;  // Pin donde está conectado el LED
+const int ledPin = 2;
+
+unsigned long tiempoAnterior = 0;
+const unsigned long intervaloChequeo = 1000;
+
+unsigned long tiempoEncendidoLed = 0;
+const unsigned long duracionEncendidoLed = 1000;
+bool ledEncendido = false;
 
 void conectarWiFi() {
     WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.println("Conectando a WiFi...");
+    unsigned long tiempoInicio = millis();
+    const unsigned long tiempoEspera = 5000;
+
+    Serial.println("Conectando a WiFi...");
+
+    while (WiFi.status() != WL_CONNECTED && millis() - tiempoInicio < tiempoEspera) {
+        // Espera no bloqueante de conexión Wi-Fi
     }
-    Serial.println("Conectado a WiFi!");
-    Serial.print("Dirección IP: ");
-    Serial.println(WiFi.localIP());
-    servidor.begin();
-    
+
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("Conectado a WiFi!");
+        Serial.print("Dirección IP: ");
+        Serial.println(WiFi.localIP());
+        servidor.begin();
+    } else {
+        Serial.println("No se pudo conectar a WiFi.");
+    }
 }
 
 void recibirTexto() {
@@ -29,18 +44,15 @@ void recibirTexto() {
     
     if (cliente) {
         Serial.println("Cliente conectado");
-        String peticion = cliente.readStringUntil('\r');  // Lee la petición completa
+        String peticion = cliente.readStringUntil('\r');
         cliente.flush();
 
         int indiceTexto = peticion.indexOf("/?texto=");
         if (indiceTexto != -1) {
             textoRecibido = peticion.substring(indiceTexto + 8, peticion.indexOf(" ", indiceTexto));
-            textoRecibido.trim();  // Quitar espacios en blanco
+            textoRecibido.trim();
+            textoRecibido.replace("%20", " ");
 
-            // Reemplazar %20 por espacios
-            textoRecibido.replace("%20", " ");  // Reemplaza los %20 por espacios
-
-            // Respuesta al cliente
             cliente.println("HTTP/1.1 200 OK");
             cliente.println("Content-type:text/html");
             cliente.println();
@@ -50,19 +62,19 @@ void recibirTexto() {
             cliente.println("<p>Espere mientras se procesa...</p>");
             cliente.println("</html>");
             Serial.println("Texto recibido: " + textoRecibido);
-            textoEnviadoPorBT = false; // Reset para enviar por Bluetooth
+            textoEnviadoPorBT = false;
         } else {
             Serial.println("No se recibió el texto");
         }
-        cliente.stop();  // Desconectar al cliente
+        cliente.stop();
         Serial.println("Cliente desconectado");
     }
 }
 
 void encenderLed() {
-    digitalWrite(ledPin, HIGH);  // Encender el LED
-    delay(1000);  // Mantener el LED encendido durante 1 segundo
-    digitalWrite(ledPin, LOW);  // Apagar el LED
+    digitalWrite(ledPin, HIGH);
+    tiempoEncendidoLed = millis();
+    ledEncendido = true;
 }
 
 void enviarTextoBluetooth() {
@@ -71,31 +83,36 @@ void enviarTextoBluetooth() {
         SerialBT.println("Texto recibido: " + textoRecibido);
         Serial.println("Texto enviado por Bluetooth.");
         
-        textoEnviadoPorBT = true;  // Marcar como enviado
-        
-        // Reiniciar textoRecibido para permitir nuevos envíos
-        textoRecibido = "";  // Limpiar el texto recibido
+        textoEnviadoPorBT = true;
+        textoRecibido = "";
     }
 }
 
 void setup() {
     Serial.begin(115200);
-    pinMode(ledPin, OUTPUT);  // Configurar el pin del LED como salida
+    pinMode(ledPin, OUTPUT);
     conectarWiFi();
 
-    SerialBT.begin("ESP32_Bluetooth");  // Iniciar Bluetooth
+    SerialBT.begin("ESP32_Bluetooth");
     Serial.println("Bluetooth iniciado, esperando conexión...");
 }
 
 void loop() {
     if (WiFi.status() == WL_CONNECTED) {
-        recibirTexto();  // Recibe el texto desde HTML si está conectado a Wi-Fi
+        recibirTexto();
     }
 
     if (!textoRecibido.isEmpty() && !textoEnviadoPorBT) {
-        encenderLed();  // Ejecutar acción antes de enviar por Bluetooth
-        enviarTextoBluetooth();  // Envía el texto por Bluetooth si hay uno para enviar
+        encenderLed();
+        enviarTextoBluetooth();
     }
 
-    delay(1000);  // Reducir el intervalo de chequeo
+    if (ledEncendido && millis() - tiempoEncendidoLed >= duracionEncendidoLed) {
+        digitalWrite(ledPin, LOW);
+        ledEncendido = false;
+    }
+
+    if (millis() - tiempoAnterior >= intervaloChequeo) {
+        tiempoAnterior = millis();
+    }
 }

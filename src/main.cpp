@@ -1,32 +1,13 @@
 #include <WiFi.h>
+#include <BluetoothSerial.h>
 
-// Credenciales WiFi
-const char* ssid = "CATERPILAR";
-const char* password = "Carranza";
+const char* ssid = "CATERPILAR";        // Nombre de la red Wi-Fi
+const char* password = "Carranza";      // Contraseña de la red Wi-Fi
 
-// Definición de pines
-#define stepPin1 33
-#define dirPin1 32
-#define stepPin2 4
-#define dirPin2 16
-#define stepPin3 15
-#define dirPin3 2
-
-// Variables de control
-unsigned long previousMillis = 0;
-const long movimientoDuracion = 3000;  // Duración de movimiento por motor
-const long pasoIntervalo = 4;  // Intervalo de 4 ms entre pasos
-int motorActual = 0;  // Motor actual a girar
-bool motoresActivos = false;
-
-WiFiServer servidor(80);
-<<<<<<< Updated upstream
-=======
-String textoRecibido = "";
-bool textoEnviadoPorBT = false;
-
-unsigned long tiempoAnterior = 0;
-const unsigned long intervaloChequeo = 1000;
+BluetoothSerial SerialBT;                // Objeto para Bluetooth
+WiFiServer servidor(80);                 // Servidor en el puerto 80
+String textoRecibido = "";               // Variable para almacenar el texto recibido
+bool textoEnviadoPorBT = false;          // Bandera para controlar el envío por Bluetooth
 
 // Definición de estados
 enum Estado { RECEPCION_TEXTO, IMPRESION };
@@ -65,80 +46,33 @@ int vectorBraille[27][6] = {
 
 // Vector para almacenar la representación Braille del texto
 int vectorTexto[100][6]; // Se asume un máximo de 100 caracteres
-int posicionTexto = 0;
+int posicionTexto = 0;   // Variable para controlar la posición en el vectorTexto
 
 // Variables de estado de impresión
-unsigned long tiempoImpresion = 0;
+unsigned long tiempoImpresion = 0; // Tiempo de impresión
 const unsigned long intervaloPerforacion = 1000; // Tiempo entre perforaciones
->>>>>>> Stashed changes
 
-// Funciones
 void conectarWiFi() {
-  Serial.println("Conectando a WiFi...");
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Conectando...");
-  }
-  Serial.println("Conectado a WiFi!");
-  Serial.print("IP asignada: ");
-  Serial.println(WiFi.localIP());  // Mostrar la IP asignada
+    WiFi.begin(ssid, password);
+    unsigned long tiempoInicio = millis();
+    const unsigned long tiempoEspera = 5000;
+
+    Serial.println("Conectando a WiFi...");
+
+    while (WiFi.status() != WL_CONNECTED && millis() - tiempoInicio < tiempoEspera) {
+        // Espera no bloqueante de conexión Wi-Fi
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("Conectado a WiFi!");
+        Serial.print("Dirección IP: ");
+        Serial.println(WiFi.localIP());
+        servidor.begin();
+    } else {
+        Serial.println("No se pudo conectar a WiFi.");
+    }
 }
 
-<<<<<<< Updated upstream
-void moverMotor(int motor) {
-  int stepPin, dirPin;
-
-  // Seleccionar pines según el motor
-  switch (motor) {
-    case 1:
-      stepPin = stepPin1;
-      dirPin = dirPin1;
-      break;
-    case 2:
-      stepPin = stepPin2;
-      dirPin = dirPin2;
-      break;
-    case 3:
-      stepPin = stepPin3;
-      dirPin = dirPin3;
-      break;
-    default:
-      return;  // No hacer nada si el motor no es válido
-  }
-
-  // Configurar dirección y girar el motor
-  digitalWrite(dirPin, HIGH);  // Fijar dirección del motor
-  digitalWrite(stepPin, HIGH);
-  delayMicroseconds(100);  // Ajustar tiempo para simular un paso
-  digitalWrite(stepPin, LOW);
-  delayMicroseconds(100);  // Ajustar tiempo para simular un paso
-}
-
-void procesarCliente(WiFiClient cliente) {
-  String peticion = "";
-  while (cliente.connected()) {
-    if (cliente.available()) {
-      char c = cliente.read();
-      peticion += c;
-
-      // Verificar si se recibió la petición completa
-      if (c == '\n') {
-        Serial.println("Petición recibida: ");
-        Serial.println(peticion);
-
-        // Verificar si el texto es "ON" o "OFF"
-        if (peticion.indexOf("GET /?texto=ON") != -1) {
-          motoresActivos = true;
-          motorActual = 1;  // Iniciar con el motor 1
-          previousMillis = millis();  // Reiniciar temporizador
-        } else if (peticion.indexOf("GET /?texto=OFF") != -1) {
-          motoresActivos = false;  // Apagar motores
-          // Desactivar todos los pasos
-          digitalWrite(stepPin1, LOW);
-          digitalWrite(stepPin2, LOW);
-          digitalWrite(stepPin3, LOW);
-=======
 void recibirTexto() {
     WiFiClient cliente = servidor.available();
 
@@ -184,19 +118,12 @@ void recibirTexto() {
             estadoActual = IMPRESION; // Cambiar el estado a impresión
         } else {
             Serial.println("No se recibió el texto");
->>>>>>> Stashed changes
         }
+        cliente.stop();
+        Serial.println("Cliente desconectado");
+    }
+}
 
-<<<<<<< Updated upstream
-        // Enviar respuesta HTTP
-        cliente.println("HTTP/1.1 200 OK");
-        cliente.println("Content-type:text/html");
-        cliente.println();
-        cliente.println("<!DOCTYPE HTML>");
-        cliente.println("<html><h1>Control de Motores</h1></html>");
-        break;
-      }
-=======
 void imprimirBraille() {
     if (posicionTexto > 0) {
         unsigned long tiempoActual = millis();
@@ -228,69 +155,27 @@ void enviarTextoBluetooth() {
         
         textoEnviadoPorBT = true;
         textoRecibido = ""; // Limpiar el texto recibido después de enviarlo
->>>>>>> Stashed changes
     }
-  }
-  cliente.stop();  // Desconectar al cliente
 }
 
 void setup() {
-<<<<<<< Updated upstream
-  Serial.begin(115200);
-=======
     Serial.begin(115200);
     conectarWiFi();
->>>>>>> Stashed changes
 
-  // Configurar pines
-  pinMode(stepPin1, OUTPUT);
-  pinMode(dirPin1, OUTPUT);
-  pinMode(stepPin2, OUTPUT);
-  pinMode(dirPin2, OUTPUT);
-  pinMode(stepPin3, OUTPUT);
-  pinMode(dirPin3, OUTPUT);
-  
-  // Conectar a WiFi
-  conectarWiFi();
-  
-  // Iniciar el servidor web
-  servidor.begin();
+    SerialBT.begin("ESP32_Bluetooth");
+    Serial.println("Bluetooth iniciado, esperando conexión...");
 }
 
 void loop() {
-  unsigned long currentMillis = millis();
+    if (WiFi.status() == WL_CONNECTED) {
+        recibirTexto();
+    }
 
-<<<<<<< Updated upstream
-  // Control de motores secuencialmente
-  if (motoresActivos) {
-    if (currentMillis - previousMillis >= movimientoDuracion) {
-      previousMillis = currentMillis;
-
-      motorActual++;
-      if (motorActual > 3) {
-        motorActual = 1;  // Reiniciar el ciclo
-      }
-=======
     if (estadoActual == IMPRESION) {
         imprimirBraille();
         if (posicionTexto == 0) {
             enviarTextoBluetooth(); // Enviar texto por Bluetooth una vez que se complete la impresión
             estadoActual = RECEPCION_TEXTO; // Volver al estado de recepción de texto
         }
->>>>>>> Stashed changes
     }
-    moverMotor(motorActual);
-    delay(pasoIntervalo);  // Esperar 4 ms entre pasos
-  } else {
-    // Desactivar todos los pasos si motoresActivos es false
-    digitalWrite(stepPin1, LOW);
-    digitalWrite(stepPin2, LOW);
-    digitalWrite(stepPin3, LOW);
-  }
-
-  // Verificar solicitudes HTTP
-  WiFiClient cliente = servidor.available();
-  if (cliente) {
-    procesarCliente(cliente);
-  }
 }

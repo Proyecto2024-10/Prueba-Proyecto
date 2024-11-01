@@ -1,19 +1,17 @@
 #include <WiFi.h>
 #include <BluetoothSerial.h>
 
-const char* ssid = "CATERPILAR";        // Nombre de la red Wi-Fi
-const char* password = "Carranza";      // Contraseña de la red Wi-Fi
+const char* ssid = "CATERPILAR";
+const char* password = "Carranza";
 
-BluetoothSerial SerialBT;                // Objeto para Bluetooth
-WiFiServer servidor(80);                 // Servidor en el puerto 80
-String textoRecibido = "";               // Variable para almacenar el texto recibido
-bool textoEnviadoPorBT = false;          // Bandera para controlar el envío por Bluetooth
+BluetoothSerial SerialBT;
+WiFiServer servidor(80);
+String textoRecibido = "";
+bool textoEnviadoPorBT = false;
 
-// Definición de estados
 enum Estado { RECEPCION_TEXTO, IMPRESION };
 Estado estadoActual = RECEPCION_TEXTO;
 
-// Vector Braille para letras a-z y espacio
 int vectorBraille[27][6] = {
     {1, 0, 0, 0, 0, 0}, // "a"
     {1, 1, 0, 0, 0, 0}, // "b"
@@ -44,25 +42,23 @@ int vectorBraille[27][6] = {
     {0, 0, 0, 0, 0, 0}  // " " (espacio)
 };
 
-// Vector para almacenar la representación Braille del texto
-int vectorTexto[100][6]; // Se asume un máximo de 100 caracteres
-int posicionTexto = 0;   // Variable para controlar la posición en el vectorTexto
-
-// Variables de estado de impresión
-unsigned long tiempoImpresion = 0; // Tiempo de impresión
-const unsigned long intervaloPerforacion = 1000; // Tiempo entre perforaciones
+int vectorTexto[15][6];
+int posicionTexto = 0;
+const int dirPinCinta = 32;
+const int stepPinCinta = 33;
+const int dirPinLeva = 16;
+const int stepPinLeva = 4;
+const int dirPinCorte = 2;
+const int stepPinCorte = 15;
+const int servoPin = 0;
 
 void conectarWiFi() {
     WiFi.begin(ssid, password);
     unsigned long tiempoInicio = millis();
     const unsigned long tiempoEspera = 5000;
 
-    Serial.println("Conectando a WiFi...");
-
-    while (WiFi.status() != WL_CONNECTED && millis() - tiempoInicio < tiempoEspera) {
-        // Espera no bloqueante de conexión Wi-Fi
-    }
-
+    while (WiFi.status() != WL_CONNECTED && millis() - tiempoInicio < tiempoEspera) {}
+    
     if (WiFi.status() == WL_CONNECTED) {
         Serial.println("Conectado a WiFi!");
         Serial.print("Dirección IP: ");
@@ -75,9 +71,7 @@ void conectarWiFi() {
 
 void recibirTexto() {
     WiFiClient cliente = servidor.available();
-
     if (cliente) {
-        Serial.println("Cliente conectado");
         String peticion = cliente.readStringUntil('\r');
         cliente.flush();
 
@@ -86,66 +80,67 @@ void recibirTexto() {
             textoRecibido = peticion.substring(indiceTexto + 8, peticion.indexOf(" ", indiceTexto));
             textoRecibido.trim();
             textoRecibido.replace("%20", " ");
-            
-            cliente.println("HTTP/1.1 200 OK");
-            cliente.println("Content-type:text/html");
-            cliente.println();
-            cliente.println("<html><h1>Texto recibido correctamente</h1>");
-            cliente.println("<p>¿Está seguro de enviar el texto?</p>");
-            cliente.println("<button onclick=\"fetch('/enviar')\">Enviar por Bluetooth</button>");
-            cliente.println("<p>Espere mientras se procesa...</p>");
-            cliente.println("</html>");
             Serial.println("Texto recibido: " + textoRecibido);
             textoEnviadoPorBT = false;
 
-            // Convertir texto a Braille
             for (int i = 0; i < textoRecibido.length(); i++) {
                 char letra = textoRecibido[i];
-                if (letra >= 'a' && letra <= 'z') {
-                    // Guardar la representación Braille de la letra
+                if (letra >= 97 && letra <= 122) { //97 es "a" y 122 es "z"
                     for (int j = 0; j < 6; j++) {
-                        vectorTexto[posicionTexto][j] = vectorBraille[letra - 'a'][j];
+                        vectorTexto[posicionTexto][j] = vectorBraille[letra - 97][j];
                     }
                     posicionTexto++;
-                } else if (letra == ' ') {
-                    // Guardar la representación Braille del espacio
+                } else if (letra == 32) { //32 es " "
                     for (int j = 0; j < 6; j++) {
-                        vectorTexto[posicionTexto][j] = vectorBraille[26][j]; // Espacio
+                        vectorTexto[posicionTexto][j] = vectorBraille[26][j];
                     }
                     posicionTexto++;
                 }
             }
-            estadoActual = IMPRESION; // Cambiar el estado a impresión
+            estadoActual = IMPRESION;
         } else {
-            Serial.println("No se recibió el texto");
+            Serial.println("No se recibió el texto o se ingresó un caracter inválido");
         }
         cliente.stop();
-        Serial.println("Cliente desconectado");
     }
+}
+
+void moverCinta() {
+// CODIGO MOVIMIENTO CINTA
+}
+
+void perforar() {
+// CODIGO PERFORACION
+}
+
+void moverServo(int posicion) {
+    // CODIGO SERVO
 }
 
 void imprimirBraille() {
-    if (posicionTexto > 0) {
-        unsigned long tiempoActual = millis();
-        if (tiempoActual - tiempoImpresion >= intervaloPerforacion) {
-            // Imprimir el siguiente carácter en Braille
-            Serial.print("Imprimiendo: ");
-            for (int j = 0; j < 6; j++) {
-                Serial.print(vectorTexto[0][j]); // Imprime la representación Braille
-            }
-            Serial.println();
+    static int letraActual; // Control de la letra actual
+    static int columnaActual; // Control de la columna actual
+    static int puntoActual; // Control del punto actual
 
-            // Mover los elementos del vector hacia la izquierda
-            for (int i = 1; i < posicionTexto; i++) {
-                for (int j = 0; j < 6; j++) {
-                    vectorTexto[i - 1][j] = vectorTexto[i][j];
+    for (letraActual = 0; letraActual < posicionTexto; letraActual++) { // Recorre todas las letras
+        for (columnaActual = 0; columnaActual < 2; columnaActual++) { // Dos columnas por letra
+            for (puntoActual = 0; puntoActual < 3; puntoActual++) { // Tres puntos por columna
+                if (vectorTexto[letraActual][columnaActual * 3 + puntoActual] == 1) {
+                    moverServo(puntoActual); // Mover el servo a la posición del punto
+                    perforar();
                 }
             }
-            posicionTexto--; // Disminuir la posición del texto
-            tiempoImpresion = tiempoActual; // Actualizar el tiempo de impresión
+            moverCinta(); // Mover la cinta a la siguiente posición
         }
     }
+
+
+    letraActual = 0; 
+    posicionTexto = 0; 
+    columnaActual = 0;
 }
+
+
 
 void enviarTextoBluetooth() {
     if (!textoRecibido.isEmpty() && !textoEnviadoPorBT) {
@@ -154,7 +149,7 @@ void enviarTextoBluetooth() {
         Serial.println("Texto enviado por Bluetooth.");
         
         textoEnviadoPorBT = true;
-        textoRecibido = ""; // Limpiar el texto recibido después de enviarlo
+        textoRecibido = "";
     }
 }
 
@@ -164,18 +159,24 @@ void setup() {
 
     SerialBT.begin("ESP32_Bluetooth");
     Serial.println("Bluetooth iniciado, esperando conexión...");
+
+    pinMode(dirPinCinta, OUTPUT);
+    pinMode(stepPinCinta, OUTPUT);
+    pinMode(dirPinLeva, OUTPUT);
+    pinMode(stepPinLeva, OUTPUT);
+    pinMode(dirPinCorte, OUTPUT);
+    pinMode(stepPinCorte, OUTPUT);
+    pinMode(servoPin, OUTPUT);
 }
 
 void loop() {
-    if (WiFi.status() == WL_CONNECTED) {
-        recibirTexto();
-    }
-
-    if (estadoActual == IMPRESION) {
-        imprimirBraille();
-        if (posicionTexto == 0) {
-            enviarTextoBluetooth(); // Enviar texto por Bluetooth una vez que se complete la impresión
-            estadoActual = RECEPCION_TEXTO; // Volver al estado de recepción de texto
-        }
+    switch (estadoActual) {
+        case RECEPCION_TEXTO:
+            recibirTexto();
+            break;
+        case IMPRESION:
+            imprimirBraille();
+            enviarTextoBluetooth();
+            break;
     }
 }

@@ -20,6 +20,57 @@ int motorActual = 0;  // Motor actual a girar
 bool motoresActivos = false;
 
 WiFiServer servidor(80);
+<<<<<<< Updated upstream
+=======
+String textoRecibido = "";
+bool textoEnviadoPorBT = false;
+
+unsigned long tiempoAnterior = 0;
+const unsigned long intervaloChequeo = 1000;
+
+// Definición de estados
+enum Estado { RECEPCION_TEXTO, IMPRESION };
+Estado estadoActual = RECEPCION_TEXTO;
+
+// Vector Braille para letras a-z y espacio
+int vectorBraille[27][6] = {
+    {1, 0, 0, 0, 0, 0}, // "a"
+    {1, 1, 0, 0, 0, 0}, // "b"
+    {1, 0, 0, 1, 0, 0}, // "c"
+    {1, 0, 0, 1, 1, 0}, // "d"
+    {1, 0, 0, 0, 1, 0}, // "e"
+    {1, 1, 0, 1, 0, 0}, // "f"
+    {1, 1, 0, 1, 1, 0}, // "g"
+    {1, 1, 0, 0, 1, 0}, // "h"
+    {0, 1, 0, 1, 0, 0}, // "i"
+    {0, 1, 0, 1, 1, 0}, // "j"
+    {1, 0, 1, 0, 0, 0}, // "k"
+    {1, 1, 1, 0, 0, 0}, // "l"
+    {1, 0, 1, 1, 0, 0}, // "m"
+    {1, 0, 1, 1, 1, 0}, // "n"
+    {1, 0, 1, 0, 1, 0}, // "o"
+    {1, 1, 1, 1, 0, 0}, // "p"
+    {1, 1, 1, 1, 1, 0}, // "q"
+    {1, 1, 1, 0, 1, 0}, // "r"
+    {0, 1, 1, 1, 0, 0}, // "s"
+    {0, 1, 1, 1, 1, 0}, // "t"
+    {1, 0, 1, 0, 0, 1}, // "u"
+    {1, 1, 1, 0, 0, 1}, // "v"
+    {0, 1, 0, 1, 1, 1}, // "w"
+    {1, 0, 1, 1, 0, 1}, // "x"
+    {1, 0, 1, 1, 1, 1}, // "y"
+    {1, 0, 1, 0, 1, 1}, // "z"
+    {0, 0, 0, 0, 0, 0}  // " " (espacio)
+};
+
+// Vector para almacenar la representación Braille del texto
+int vectorTexto[100][6]; // Se asume un máximo de 100 caracteres
+int posicionTexto = 0;
+
+// Variables de estado de impresión
+unsigned long tiempoImpresion = 0;
+const unsigned long intervaloPerforacion = 1000; // Tiempo entre perforaciones
+>>>>>>> Stashed changes
 
 // Funciones
 void conectarWiFi() {
@@ -34,6 +85,7 @@ void conectarWiFi() {
   Serial.println(WiFi.localIP());  // Mostrar la IP asignada
 }
 
+<<<<<<< Updated upstream
 void moverMotor(int motor) {
   int stepPin, dirPin;
 
@@ -86,8 +138,56 @@ void procesarCliente(WiFiClient cliente) {
           digitalWrite(stepPin1, LOW);
           digitalWrite(stepPin2, LOW);
           digitalWrite(stepPin3, LOW);
+=======
+void recibirTexto() {
+    WiFiClient cliente = servidor.available();
+
+    if (cliente) {
+        Serial.println("Cliente conectado");
+        String peticion = cliente.readStringUntil('\r');
+        cliente.flush();
+
+        int indiceTexto = peticion.indexOf("/?texto=");
+        if (indiceTexto != -1) {
+            textoRecibido = peticion.substring(indiceTexto + 8, peticion.indexOf(" ", indiceTexto));
+            textoRecibido.trim();
+            textoRecibido.replace("%20", " ");
+            
+            cliente.println("HTTP/1.1 200 OK");
+            cliente.println("Content-type:text/html");
+            cliente.println();
+            cliente.println("<html><h1>Texto recibido correctamente</h1>");
+            cliente.println("<p>¿Está seguro de enviar el texto?</p>");
+            cliente.println("<button onclick=\"fetch('/enviar')\">Enviar por Bluetooth</button>");
+            cliente.println("<p>Espere mientras se procesa...</p>");
+            cliente.println("</html>");
+            Serial.println("Texto recibido: " + textoRecibido);
+            textoEnviadoPorBT = false;
+
+            // Convertir texto a Braille
+            for (int i = 0; i < textoRecibido.length(); i++) {
+                char letra = textoRecibido[i];
+                if (letra >= 'a' && letra <= 'z') {
+                    // Guardar la representación Braille de la letra
+                    for (int j = 0; j < 6; j++) {
+                        vectorTexto[posicionTexto][j] = vectorBraille[letra - 'a'][j];
+                    }
+                    posicionTexto++;
+                } else if (letra == ' ') {
+                    // Guardar la representación Braille del espacio
+                    for (int j = 0; j < 6; j++) {
+                        vectorTexto[posicionTexto][j] = vectorBraille[26][j]; // Espacio
+                    }
+                    posicionTexto++;
+                }
+            }
+            estadoActual = IMPRESION; // Cambiar el estado a impresión
+        } else {
+            Serial.println("No se recibió el texto");
+>>>>>>> Stashed changes
         }
 
+<<<<<<< Updated upstream
         // Enviar respuesta HTTP
         cliente.println("HTTP/1.1 200 OK");
         cliente.println("Content-type:text/html");
@@ -96,13 +196,51 @@ void procesarCliente(WiFiClient cliente) {
         cliente.println("<html><h1>Control de Motores</h1></html>");
         break;
       }
+=======
+void imprimirBraille() {
+    if (posicionTexto > 0) {
+        unsigned long tiempoActual = millis();
+        if (tiempoActual - tiempoImpresion >= intervaloPerforacion) {
+            // Imprimir el siguiente carácter en Braille
+            Serial.print("Imprimiendo: ");
+            for (int j = 0; j < 6; j++) {
+                Serial.print(vectorTexto[0][j]); // Imprime la representación Braille
+            }
+            Serial.println();
+
+            // Mover los elementos del vector hacia la izquierda
+            for (int i = 1; i < posicionTexto; i++) {
+                for (int j = 0; j < 6; j++) {
+                    vectorTexto[i - 1][j] = vectorTexto[i][j];
+                }
+            }
+            posicionTexto--; // Disminuir la posición del texto
+            tiempoImpresion = tiempoActual; // Actualizar el tiempo de impresión
+        }
+    }
+}
+
+void enviarTextoBluetooth() {
+    if (!textoRecibido.isEmpty() && !textoEnviadoPorBT) {
+        Serial.println("Enviando texto por Bluetooth...");
+        SerialBT.println("Texto recibido: " + textoRecibido);
+        Serial.println("Texto enviado por Bluetooth.");
+        
+        textoEnviadoPorBT = true;
+        textoRecibido = ""; // Limpiar el texto recibido después de enviarlo
+>>>>>>> Stashed changes
     }
   }
   cliente.stop();  // Desconectar al cliente
 }
 
 void setup() {
+<<<<<<< Updated upstream
   Serial.begin(115200);
+=======
+    Serial.begin(115200);
+    conectarWiFi();
+>>>>>>> Stashed changes
 
   // Configurar pines
   pinMode(stepPin1, OUTPUT);
@@ -122,6 +260,7 @@ void setup() {
 void loop() {
   unsigned long currentMillis = millis();
 
+<<<<<<< Updated upstream
   // Control de motores secuencialmente
   if (motoresActivos) {
     if (currentMillis - previousMillis >= movimientoDuracion) {
@@ -131,6 +270,14 @@ void loop() {
       if (motorActual > 3) {
         motorActual = 1;  // Reiniciar el ciclo
       }
+=======
+    if (estadoActual == IMPRESION) {
+        imprimirBraille();
+        if (posicionTexto == 0) {
+            enviarTextoBluetooth(); // Enviar texto por Bluetooth una vez que se complete la impresión
+            estadoActual = RECEPCION_TEXTO; // Volver al estado de recepción de texto
+        }
+>>>>>>> Stashed changes
     }
     moverMotor(motorActual);
     delay(pasoIntervalo);  // Esperar 4 ms entre pasos

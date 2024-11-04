@@ -1,18 +1,15 @@
 #include <WiFi.h>
 #include <BluetoothSerial.h>
 
+// Configuración de WiFi y Bluetooth
 const char* ssid = "CATERPILAR";
 const char* password = "Carranza";
-
 BluetoothSerial SerialBT;
 WiFiServer servidor(80);
+
+// Variables para manejar texto
 String textoRecibido = "";
-bool textoEnviadoPorBT = false;
-
-enum Estado { RECEPCION_TEXTO, IMPRESION };
-Estado estadoActual = RECEPCION_TEXTO;
-
-int vectorBraille[27][6] = {
+int matrizBraille[27][6] = {
     {1, 0, 0, 0, 0, 0}, // "a"
     {1, 1, 0, 0, 0, 0}, // "b"
     {1, 0, 0, 1, 0, 0}, // "c"
@@ -42,16 +39,25 @@ int vectorBraille[27][6] = {
     {0, 0, 0, 0, 0, 0}  // " " (espacio)
 };
 
-int vectorTexto[15][6];
-int posicionTexto = 0;
-const int dirPinCinta = 32;
-const int stepPinCinta = 33;
-const int dirPinLeva = 16;
-const int stepPinLeva = 4;
-const int dirPinCorte = 2;
-const int stepPinCorte = 15;
-const int servoPin = 0;
+int matrizTexto[15][6]; // Vector para el texto a imprimir
+int posicionTexto = 0; // Posición actual en el texto
+bool textoEnviadoPorBT = false;
+bool columnaMostrada = false;
+// Pines de LEDs
+const int ledFila1 = 12; // Fila 1
+const int ledFila2 = 26; // Fila 2
+const int ledFila3 = 27; // Fila 3
+const int ledColumna  = 13; // LED para indicar columna
+bool apagadoPendiente = false;
+// Variables de estado
+enum Estado { RECEPCION_TEXTO, IMPRESION };
+Estado estadoActual = RECEPCION_TEXTO;
+unsigned long tiempoAnterior = 0; // Tiempo anterior para controlar el intervalo
+const unsigned long intervalo = 2000; // Intervalo de 2 segundos
+int letraActual = 0; // Índice de la letra que se está mostrando
+bool ledsMostrados = false; // Marca si los LEDs de la letra actual ya han sido mostrados
 
+// Función para conectar WiFi
 void conectarWiFi() {
     WiFi.begin(ssid, password);
     unsigned long tiempoInicio = millis();
@@ -69,80 +75,98 @@ void conectarWiFi() {
     }
 }
 
+// Función para recibir texto desde la página
 void recibirTexto() {
     WiFiClient cliente = servidor.available();
     if (cliente) {
         String peticion = cliente.readStringUntil('\r');
         cliente.flush();
-
         int indiceTexto = peticion.indexOf("/?texto=");
         if (indiceTexto != -1) {
             textoRecibido = peticion.substring(indiceTexto + 8, peticion.indexOf(" ", indiceTexto));
             textoRecibido.trim();
             textoRecibido.replace("%20", " ");
-            Serial.println("Texto recibido: " + textoRecibido);
-            textoEnviadoPorBT = false;
 
             for (int i = 0; i < textoRecibido.length(); i++) {
                 char letra = textoRecibido[i];
-                if (letra >= 97 && letra <= 122) { //97 es "a" y 122 es "z"
+                if (letra >= 'a' && letra <= 'z') {
                     for (int j = 0; j < 6; j++) {
-                        vectorTexto[posicionTexto][j] = vectorBraille[letra - 97][j];
+                        matrizTexto[posicionTexto][j] = matrizBraille[letra - 'a'][j];
                     }
+
                     posicionTexto++;
-                } else if (letra == 32) { //32 es " "
+                } else if (letra == ' ') {
                     for (int j = 0; j < 6; j++) {
-                        vectorTexto[posicionTexto][j] = vectorBraille[26][j];
+                        matrizTexto[posicionTexto][j] = matrizBraille[26][j];
                     }
+
                     posicionTexto++;
                 }
             }
             estadoActual = IMPRESION;
-        } else {
-            Serial.println("No se recibió el texto o se ingresó un caracter inválido");
         }
         cliente.stop();
     }
 }
 
-void moverCinta() {
-// CODIGO MOVIMIENTO CINTA
-}
-
 void perforar() {
-// CODIGO PERFORACION
-}
+    unsigned long tiempoActual = millis(); // Obtiene el tiempo actual
 
-void moverServo(int posicion) {
-    // CODIGO SERVO
-}
-
-void imprimirBraille() {
-    static int letraActual; // Control de la letra actual
-    static int columnaActual; // Control de la columna actual
-    static int puntoActual; // Control del punto actual
-
-    for (letraActual = 0; letraActual < posicionTexto; letraActual++) { // Recorre todas las letras
-        for (columnaActual = 0; columnaActual < 2; columnaActual++) { // Dos columnas por letra
-            for (puntoActual = 0; puntoActual < 3; puntoActual++) { // Tres puntos por columna
-                if (vectorTexto[letraActual][columnaActual * 3 + puntoActual] == 1) {
-                    moverServo(puntoActual); // Mover el servo a la posición del punto
-                    perforar();
-                }
-            }
-            moverCinta(); // Mover la cinta a la siguiente posición
-        }
+    // Verifica si todas las letras han sido procesadas
+    if (letraActual >= posicionTexto) {
+        ledsMostrados = true; // Marca que se han mostrado todos los LEDs
+        return;
     }
 
+    // Control de la visualización de columnas
+    if (tiempoActual - tiempoAnterior >= intervalo) {
+        // Primero apaga el LED de columna para los primeros 3 bits
+        digitalWrite(ledColumna, LOW); // Asegúrate de que esté apagado
 
-    letraActual = 0; 
-    posicionTexto = 0; 
-    columnaActual = 0;
+        if (!columnaMostrada) { // Si estamos en la primera columna
+            // Muestra primera columna (primeros 3 bits)
+            digitalWrite(ledFila1, matrizTexto[letraActual][0]);
+            digitalWrite(ledFila2, matrizTexto[letraActual][1]);
+            digitalWrite(ledFila3, matrizTexto[letraActual][2]);
+
+            // Imprime en el serial la letra y su representación en Braille
+            Serial.print("Imprimiendo letra: ");
+            Serial.print(textoRecibido[letraActual]);
+            Serial.print(" - Braille: ");
+            Serial.print(matrizTexto[letraActual][0]);
+            Serial.print(matrizTexto[letraActual][1]);
+            Serial.print(matrizTexto[letraActual][2]);
+            Serial.print(" ");
+
+            columnaMostrada = true; // Cambiamos a la segunda columna
+            tiempoAnterior = tiempoActual; // Actualiza el tiempo
+        } 
+        else { // Si estamos en la segunda columna
+            // Enciende el LED de columna y muestra la segunda columna (últimos 3 bits)
+            digitalWrite(ledColumna, HIGH); // Prende el LED de columna
+            digitalWrite(ledFila1, matrizTexto[letraActual][3]);
+            digitalWrite(ledFila2, matrizTexto[letraActual][4]);
+            digitalWrite(ledFila3, matrizTexto[letraActual][5]);
+
+            // Completa la impresión en el serial de la representación en Braille
+            Serial.print(matrizTexto[letraActual][3]);
+            Serial.print(matrizTexto[letraActual][4]);
+            Serial.println(matrizTexto[letraActual][5]);
+
+            // Actualizamos para pasar a la siguiente letra
+            letraActual++;              // Avanzamos a la siguiente letra
+            columnaMostrada = false;    // Reinicia el estado de columna
+            tiempoAnterior = tiempoActual; // Actualiza el tiempo para el próximo ciclo
+        }
+    }
 }
 
 
 
-void enviarTextoBluetooth() {
+
+
+// Función para enviar el texto por Bluetooth
+void enviarTextoPorBluetooth() {
     if (!textoRecibido.isEmpty() && !textoEnviadoPorBT) {
         Serial.println("Enviando texto por Bluetooth...");
         SerialBT.println("Texto recibido: " + textoRecibido);
@@ -153,20 +177,27 @@ void enviarTextoBluetooth() {
     }
 }
 
+// Función para imprimir el texto en Braille
+void imprimirBraille() {
+    perforar(); // Llama a Perforar para la letra actual
+    if (ledsMostrados) {
+        enviarTextoPorBluetooth(); // Envía el texto recibido por Bluetooth
+        posicionTexto = 0; // Reinicia la posición del texto
+        estadoActual = RECEPCION_TEXTO; // Vuelve al estado de recepción de texto
+        letraActual = 0; // Reinicia el índice de letra
+        ledsMostrados = false; // Resetea la marca para la próxima letra
+        tiempoAnterior = 0; // Resetea el tiempo para los LEDs
+    }
+}
+
 void setup() {
     Serial.begin(115200);
     conectarWiFi();
-
     SerialBT.begin("ESP32_Bluetooth");
-    Serial.println("Bluetooth iniciado, esperando conexión...");
-
-    pinMode(dirPinCinta, OUTPUT);
-    pinMode(stepPinCinta, OUTPUT);
-    pinMode(dirPinLeva, OUTPUT);
-    pinMode(stepPinLeva, OUTPUT);
-    pinMode(dirPinCorte, OUTPUT);
-    pinMode(stepPinCorte, OUTPUT);
-    pinMode(servoPin, OUTPUT);
+    pinMode(ledFila1, OUTPUT);
+    pinMode(ledFila2, OUTPUT);
+    pinMode(ledFila3, OUTPUT);
+    pinMode(ledColumna, OUTPUT);
 }
 
 void loop() {
@@ -176,7 +207,6 @@ void loop() {
             break;
         case IMPRESION:
             imprimirBraille();
-            enviarTextoBluetooth();
             break;
     }
 }

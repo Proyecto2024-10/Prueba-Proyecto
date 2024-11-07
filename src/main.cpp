@@ -42,8 +42,10 @@ int matrizTexto[30][6]; // Vector para el texto a imprimir
 int posicionTexto = 0; // Posición actual en el texto
 const unsigned long intervalo = 1000; // Intervalo de 1 segundo
 bool columnaMostrada = false;
-//Declaración Funciones
+// Declaración de Funciones
 void perforar();
+void moverCinta();
+void cortarCinta();
 void conectarWiFi();
 void recibirTexto();
 void imprimirBraille();
@@ -58,7 +60,6 @@ const int ledColumna  = 13; // LED para indicar columna
 // Variables de estado
 enum Estado { RECEPCION_TEXTO, IMPRESION };
 Estado estadoActual = RECEPCION_TEXTO;
-
 
 unsigned long tiempoAnterior = 0; // Tiempo anterior para controlar el intervalo
 int letraActual = 0; // Índice de la letra que se está mostrando
@@ -84,6 +85,7 @@ void loop() {
             break;
     }
 }
+
 // Función para conectar WiFi
 void conectarWiFi() {
     WiFi.begin(ssid, password);
@@ -104,44 +106,44 @@ void conectarWiFi() {
 
 // Función para recibir texto desde la página
 void recibirTexto() {
-    WiFiClient cliente = servidor.available();
-    if (cliente) {
-        String peticion = cliente.readStringUntil('\r');
-        cliente.flush();
-        int indiceTexto = peticion.indexOf("/?texto=");
+    WiFiClient cliente = servidor.available();  // Verifica si hay un cliente conectado
+    if (cliente) {  // Si hay un cliente
+        String peticion = cliente.readStringUntil('\r');  // Lee la solicitud del cliente
+        cliente.flush();  // Vacía el buffer del cliente
+        int indiceTexto = peticion.indexOf("/?texto=");  // Busca la parte de la solicitud que contiene el texto
         if (indiceTexto != -1) {
             textoRecibido = peticion.substring(indiceTexto + 8, peticion.indexOf(" ", indiceTexto));
-            textoRecibido.trim();
-            textoRecibido.replace("%20", " ");
-            textoRecibido.toLowerCase();
+            textoRecibido.trim();  // Elimina espacios innecesarios al principio y al final
+            textoRecibido.replace("%20", " ");  // Reemplaza el código de espacio "%20" por un espacio real
+            textoRecibido.toLowerCase();  // Convierte todo el texto a minúsculas
 
-
+            // Convierte cada carácter del texto recibido a su representación en Braille
             for (int i = 0; i < textoRecibido.length(); i++) {
-                char letra = textoRecibido[i];
-                if (letra >= 'a' && letra <= 'z') {
+                char letra = textoRecibido[i];  // Obtiene el carácter actual del texto
+                if (letra >= 'a' && letra <= 'z') {  // Si el carácter está entre 'a' y 'z'
                     for (int j = 0; j < 6; j++) {
-                        matrizTexto[posicionTexto][j] = matrizBraille[letra - 'a'][j];
+                        matrizTexto[posicionTexto][j] = matrizBraille[letra - 'a'][j];  // Asigna el valor Braille correspondiente
                     }
 
-                    posicionTexto++;
-                } else if (letra == ' ') {
+                    posicionTexto++;  // Incrementa la posición del texto en el vector
+                } else if (letra == ' ') {  // Si el carácter es un espacio
                     for (int j = 0; j < 6; j++) {
-                        matrizTexto[posicionTexto][j] = matrizBraille[26][j];
+                        matrizTexto[posicionTexto][j] = matrizBraille[26][j];  // Asigna la representación Braille del espacio
                     }
 
-                    posicionTexto++;
+                    posicionTexto++;  // Incrementa la posición para el próximo carácter
                 }
             }
-            estadoActual = IMPRESION;
+            estadoActual = IMPRESION;  // Cambia el estado para empezar a imprimir el Braille
         }
-        cliente.stop();
+        cliente.stop();  // Cierra la conexión con el cliente
     }
 }
 
 
 // Función para imprimir el texto en Braille
 void imprimirBraille() {
-    perforar(); // Llama a Perforar para la letra actual
+    perforar(); 
     if (ledsMostrados) {
         enviarTextoPorBluetooth(); // Envía el texto recibido por Bluetooth
         posicionTexto = 0; // Reinicia la posición del texto
@@ -152,23 +154,23 @@ void imprimirBraille() {
     }
 }
 
-// Modificamos la función perforar para controlar correctamente el incremento
+// Función para perforar en la cinta
 void perforar() {
     unsigned long tiempoActual = millis(); // Obtiene el tiempo actual
 
-    // Verifica si todas las letras han sido procesadas
     if (letraActual >= posicionTexto) {
         ledsMostrados = true; // Marca que se han mostrado todos los LEDs
+        cortarCinta(); 
         return;
     }
 
+    // Mueve la cinta hasta el punto de perforación
+    moverCinta();
+
     // Control de la visualización de columnas
     if (tiempoActual - tiempoAnterior >= intervalo) {
-        // Primero apaga el LED de columna para los primeros 3 bits
-        digitalWrite(ledColumna, LOW); // Asegúrate de que esté apagado
-
         if (!columnaMostrada) { // Si estamos en la primera columna
-            // Muestra primera columna (primeros 3 bits)
+            // Muestra primera columna 
             digitalWrite(ledFila1, matrizTexto[letraActual][0]);
             digitalWrite(ledFila2, matrizTexto[letraActual][1]);
             digitalWrite(ledFila3, matrizTexto[letraActual][2]);
@@ -185,24 +187,28 @@ void perforar() {
             columnaMostrada = true; // Cambiamos a la segunda columna
             tiempoAnterior = tiempoActual; // Actualiza el tiempo
         } 
-        else { // Si estamos en la segunda columna
-            // Enciende el LED de columna y muestra la segunda columna (últimos 3 bits)
-            digitalWrite(ledColumna, HIGH); // Prende el LED de columna
+        else { // Segunda columna
+            // Mueve la cinta hasta la segunda columna
+            moverCinta();
+            digitalWrite(ledColumna, HIGH); // Enciende el LED que indica la columna 2
             digitalWrite(ledFila1, matrizTexto[letraActual][3]);
             digitalWrite(ledFila2, matrizTexto[letraActual][4]);
             digitalWrite(ledFila3, matrizTexto[letraActual][5]);
-
-            // Completa la impresión en el serial de la representación en Braille
-            Serial.print(matrizTexto[letraActual][3]);
-            Serial.print(matrizTexto[letraActual][4]);
-            Serial.println(matrizTexto[letraActual][5]);
-
-            // Actualizamos para pasar a la siguiente letra
-            letraActual++;              // Avanzamos a la siguiente letra
-            columnaMostrada = false;    // Reinicia el estado de columna
-            tiempoAnterior = tiempoActual; // Actualiza el tiempo para el próximo ciclo
+            tiempoAnterior = tiempoActual;
+            letraActual++; // Mueve a la siguiente letra
+            columnaMostrada = false; // Vuelve a la primera columna
         }
     }
+}
+
+// Función para mover la cinta
+void moverCinta() {
+
+}
+
+// Función para cortar la cinta
+void cortarCinta() {
+
 }
 
 

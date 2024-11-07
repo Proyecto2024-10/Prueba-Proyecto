@@ -9,7 +9,7 @@ WiFiServer servidor(80);
 
 // Variables para manejar texto
 String textoRecibido = "";
-int matrizBraille[27][6] = {
+const int matrizBraille[27][6] = {
     {1, 0, 0, 0, 0, 0}, // "a"
     {1, 1, 0, 0, 0, 0}, // "b"
     {1, 0, 0, 1, 0, 0}, // "c"
@@ -38,25 +38,52 @@ int matrizBraille[27][6] = {
     {1, 0, 1, 0, 1, 1}, // "z"
     {0, 0, 0, 0, 0, 0}  // " " (espacio)
 };
-
-int matrizTexto[15][6]; // Vector para el texto a imprimir
+int matrizTexto[30][6]; // Vector para el texto a imprimir
 int posicionTexto = 0; // Posición actual en el texto
-bool textoEnviadoPorBT = false;
+const unsigned long intervalo = 1000; // Intervalo de 1 segundo
 bool columnaMostrada = false;
+//Declaración Funciones
+void perforar();
+void conectarWiFi();
+void recibirTexto();
+void imprimirBraille();
+void enviarTextoPorBluetooth();
+
 // Pines de LEDs
 const int ledFila1 = 12; // Fila 1
 const int ledFila2 = 26; // Fila 2
 const int ledFila3 = 27; // Fila 3
 const int ledColumna  = 13; // LED para indicar columna
-bool apagadoPendiente = false;
+
 // Variables de estado
 enum Estado { RECEPCION_TEXTO, IMPRESION };
 Estado estadoActual = RECEPCION_TEXTO;
+
+
 unsigned long tiempoAnterior = 0; // Tiempo anterior para controlar el intervalo
-const unsigned long intervalo = 2000; // Intervalo de 2 segundos
 int letraActual = 0; // Índice de la letra que se está mostrando
 bool ledsMostrados = false; // Marca si los LEDs de la letra actual ya han sido mostrados
 
+void setup() {
+    Serial.begin(115200);
+    conectarWiFi();
+    SerialBT.begin("ESP32_Bluetooth");
+    pinMode(ledFila1, OUTPUT);
+    pinMode(ledFila2, OUTPUT);
+    pinMode(ledFila3, OUTPUT);
+    pinMode(ledColumna, OUTPUT);
+}
+
+void loop() {
+    switch (estadoActual) {
+        case RECEPCION_TEXTO:
+            recibirTexto();
+            break;
+        case IMPRESION:
+            imprimirBraille();
+            break;
+    }
+}
 // Función para conectar WiFi
 void conectarWiFi() {
     WiFi.begin(ssid, password);
@@ -109,6 +136,21 @@ void recibirTexto() {
     }
 }
 
+
+// Función para imprimir el texto en Braille
+void imprimirBraille() {
+    perforar(); // Llama a Perforar para la letra actual
+    if (ledsMostrados) {
+        enviarTextoPorBluetooth(); // Envía el texto recibido por Bluetooth
+        posicionTexto = 0; // Reinicia la posición del texto
+        letraActual = 0; // Reinicia el índice de letra
+        ledsMostrados = false; // Resetea la marca para la próxima letra
+        tiempoAnterior = 0; // Resetea el tiempo para los LEDs
+        estadoActual = RECEPCION_TEXTO; // Vuelve al estado de recepción de texto
+    }
+}
+
+// Modificamos la función perforar para controlar correctamente el incremento
 void perforar() {
     unsigned long tiempoActual = millis(); // Obtiene el tiempo actual
 
@@ -162,51 +204,14 @@ void perforar() {
 }
 
 
-
-
-
 // Función para enviar el texto por Bluetooth
 void enviarTextoPorBluetooth() {
-    if (!textoRecibido.isEmpty() && !textoEnviadoPorBT) {
+    if (!textoRecibido.isEmpty()) {
         Serial.println("Enviando texto por Bluetooth...");
         SerialBT.println("Texto recibido: " + textoRecibido);
         Serial.println("Texto enviado por Bluetooth.");
         
-        textoEnviadoPorBT = true;
-        textoRecibido = "";
+        textoRecibido = "";  // Limpiamos el texto después de enviarlo
     }
 }
 
-// Función para imprimir el texto en Braille
-void imprimirBraille() {
-    perforar(); // Llama a Perforar para la letra actual
-    if (ledsMostrados) {
-        enviarTextoPorBluetooth(); // Envía el texto recibido por Bluetooth
-        posicionTexto = 0; // Reinicia la posición del texto
-        estadoActual = RECEPCION_TEXTO; // Vuelve al estado de recepción de texto
-        letraActual = 0; // Reinicia el índice de letra
-        ledsMostrados = false; // Resetea la marca para la próxima letra
-        tiempoAnterior = 0; // Resetea el tiempo para los LEDs
-    }
-}
-
-void setup() {
-    Serial.begin(115200);
-    conectarWiFi();
-    SerialBT.begin("ESP32_Bluetooth");
-    pinMode(ledFila1, OUTPUT);
-    pinMode(ledFila2, OUTPUT);
-    pinMode(ledFila3, OUTPUT);
-    pinMode(ledColumna, OUTPUT);
-}
-
-void loop() {
-    switch (estadoActual) {
-        case RECEPCION_TEXTO:
-            recibirTexto();
-            break;
-        case IMPRESION:
-            imprimirBraille();
-            break;
-    }
-}

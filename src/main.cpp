@@ -113,6 +113,8 @@ void recibirTexto() {
             textoRecibido = peticion.substring(indiceTexto + 8, peticion.indexOf(" ", indiceTexto));
             textoRecibido.trim();
             textoRecibido.replace("%20", " ");
+            textoRecibido.toLowerCase();
+
 
             for (int i = 0; i < textoRecibido.length(); i++) {
                 char letra = textoRecibido[i];
@@ -214,4 +216,3 @@ void enviarTextoPorBluetooth() {
         textoRecibido = "";  // Limpiamos el texto después de enviarlo
     }
 }
-

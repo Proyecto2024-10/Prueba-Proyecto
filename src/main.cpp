@@ -182,7 +182,7 @@ void perforar() {
             Serial.print(matrizTexto[letraActual][0]);
             Serial.print(matrizTexto[letraActual][1]);
             Serial.print(matrizTexto[letraActual][2]);
-            Serial.println(" ");
+            Serial.print(" ");
 
             columnaMostrada = true; // Cambiamos a la segunda columna
             tiempoAnterior = tiempoActual; // Actualiza el tiempo
@@ -194,6 +194,11 @@ void perforar() {
             digitalWrite(ledFila1, matrizTexto[letraActual][3]);
             digitalWrite(ledFila2, matrizTexto[letraActual][4]);
             digitalWrite(ledFila3, matrizTexto[letraActual][5]);
+
+            Serial.print(matrizTexto[letraActual][3]);
+            Serial.print(matrizTexto[letraActual][4]);
+            Serial.print(matrizTexto[letraActual][5]);
+            Serial.println(" ");
             tiempoAnterior = tiempoActual;
             letraActual++; // Mueve a la siguiente letra
             columnaMostrada = false; // Vuelve a la primera columna

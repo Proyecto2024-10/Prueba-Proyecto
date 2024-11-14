@@ -5,12 +5,12 @@
 #define stepPin2 33 //Motor Cinta
 #define dirPin2 32 
 #define stepPin3 15 //Motor Corte
-#define dirPin3 2
+#define dirPin3 5
 
 unsigned long previousMillis1 = 0;
 unsigned long previousMillis2 = 0;
 unsigned long previousMillis3 = 0;
-const long interval = 1;  // 1 milisegundo entre pasos (ajustar según velocidad)
+const long interval = 4;  // 1 milisegundo entre pasos (ajustar según velocidad)
 
 int stepPin1State = LOW;
 int stepPin2State = LOW;

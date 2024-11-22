@@ -64,7 +64,7 @@ Estado estadoActual = RECEPCION_TEXTO;
 unsigned long tiempoAnterior = 0; // Tiempo anterior para controlar el intervalo
 int letraActual = 0; // Índice de la letra que se está mostrando
 bool ledsMostrados = false; // Marca si los LEDs de la letra actual ya han sido mostrados
-
+int CintaFlag = 0;
 void setup() {
     Serial.begin(115200);
     conectarWiFi();
@@ -151,6 +151,7 @@ void imprimirBraille() {
         ledsMostrados = false; // Resetea la marca para la próxima letra
         tiempoAnterior = 0; // Resetea el tiempo para los LEDs
         estadoActual = RECEPCION_TEXTO; // Vuelve al estado de recepción de texto
+        CintaFlag = 0;
     }
 }
 
@@ -158,15 +159,16 @@ void imprimirBraille() {
 void perforar() {
     unsigned long tiempoActual = millis(); // Obtiene el tiempo actual
 
-    if (letraActual >= posicionTexto) {
+
+    // Mueve la cinta hasta el punto de perforación
+    CintaFlag = 1;
+    moverCinta();
+        if (letraActual >= posicionTexto) {
         ledsMostrados = true; // Marca que se han mostrado todos los LEDs
+        CintaFlag = 2;
         cortarCinta(); 
         return;
     }
-
-    // Mueve la cinta hasta el punto de perforación
-    moverCinta();
-
     // Control de la visualización de columnas
     if (tiempoActual - tiempoAnterior >= intervalo) {
         if (!columnaMostrada) { // Si estamos en la primera columna
@@ -189,6 +191,7 @@ void perforar() {
         } 
         else { // Segunda columna
             // Mueve la cinta hasta la segunda columna
+            CintaFlag = 2;
             moverCinta();
             digitalWrite(ledColumna, HIGH); // Enciende el LED que indica la columna 2
             digitalWrite(ledFila1, matrizTexto[letraActual][3]);
@@ -204,9 +207,11 @@ void perforar() {
             columnaMostrada = false; // Vuelve a la primera columna
         }
     }
+
 }
 
 // Función para mover la cinta
+
 void moverCinta() {
 
 }

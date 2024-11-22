@@ -1,11 +1,14 @@
 #include <Arduino.h>
 
-#define stepPin1 4 //Motor Leva
-#define dirPin1 16
+#define stepPin1 18 //Motor Leva
+#define dirPin1 5
+#define enable1 19
 #define stepPin2 33 //Motor Cinta
 #define dirPin2 32 
-#define stepPin3 15 //Motor Corte
-#define dirPin3 5
+#define enable2 25
+#define stepPin3 27 //Motor Corte
+#define dirPin3 26
+#define enable3 14
 
 unsigned long previousMillis1 = 0;
 unsigned long previousMillis2 = 0;

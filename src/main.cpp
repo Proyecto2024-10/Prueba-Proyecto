@@ -1,7 +1,7 @@
 
 #include <Arduino.h>
 
-#define pinServo 0
+#define pinServo 12
 
 unsigned long tiempoAnterior = 0;
 unsigned long duracionPulso = 0;

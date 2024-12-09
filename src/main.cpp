@@ -318,11 +318,18 @@ digitalWrite(enable2, LOW);
 
 }
 
-void moverServo() {
-    duracionPulsoServo = map(anguloServo[angulo - 1], 0, 180, 500, 2500); 
-    // Generar el pulso PWM manual
-    digitalWrite(pinServoControl, HIGH);
 
+void moverServo() {
+  int duracionPulsoServo = map(anguloServo[angulo - 1], 0, 180, 500, 2500);
+  unsigned long tiempoInicio = millis();
+
+  // Envía pulsos durante 500 ms para asegurar el movimiento del servo
+  while (millis() - tiempoInicio < 500) {
+    digitalWrite(pinServoControl, HIGH);
+    delayMicroseconds(duracionPulsoServo);
+    digitalWrite(pinServoControl, LOW);
+    delay(20 - (duracionPulsoServo / 1000)); // Completa el período de 20 ms
+  }
 }
 
 

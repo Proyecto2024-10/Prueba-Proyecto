@@ -305,7 +305,7 @@ void moverCinta() {
 
 void moverLeva() {
     unsigned long tiempoInicioLeva = 0;
-    unsigned long tiempoMovLeva = 500; // Tiempo de movimiento para la leva
+    unsigned long tiempoMovLeva = 350; // Tiempo de movimiento para la leva
     tiempoInicioLeva = millis();  // Inicia el temporizador cuando la leva comienza a moverse
 digitalWrite(enable2, LOW);
     while (millis() - tiempoInicioLeva < tiempoMovLeva){

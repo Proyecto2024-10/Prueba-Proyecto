@@ -55,7 +55,7 @@ const int matrizBraille[27][6] = {
 // --------------------
 // Variables de Control
 // --------------------
-int anguloServo[] = {103, 100, 97};// Patrones de ángulos
+int anguloServo[] = {95, 90, 85};// Patrones de ángulos
 int matrizTexto[30][6];  // Vector para almacenar el texto a imprimir en Braille
 int posicionTexto = 0;   // Posición actual en el texto
 int letraActual = 0;
@@ -140,7 +140,7 @@ void setup() {
     pinMode(enable3,OUTPUT);
     digitalWrite(dirPin3, HIGH);  // Fijar dirección del Motor 3
     ledcSetup(0,frecuencia_1,8);
-    ledcSetup(1,frecuencia_1,8);
+    ledcSetup(1,700,8);
     ledcSetup(2,frecuencia,8);
     ledcAttachPin(stepPin1,0);
     ledcAttachPin(stepPin2,1);
@@ -305,7 +305,7 @@ void moverCinta() {
 
 void moverLeva() {
     unsigned long tiempoInicioLeva = 0;
-    unsigned long tiempoMovLeva = 300; // Tiempo de movimiento para la leva
+    unsigned long tiempoMovLeva = 500; // Tiempo de movimiento para la leva
     tiempoInicioLeva = millis();  // Inicia el temporizador cuando la leva comienza a moverse
 digitalWrite(enable2, LOW);
     while (millis() - tiempoInicioLeva < tiempoMovLeva){

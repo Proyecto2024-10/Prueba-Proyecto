@@ -1,19 +1,25 @@
 // Inclusión de librerías necesarias
 #include <WiFi.h>
 #include <BluetoothSerial.h>
-
+#include <WiFiClientSecure.h>
+#include <UniversalTelegramBot.h>
 // Variables MEF
-enum Estado { RECEPCION_TEXTO, IMPRESION };
-Estado estadoActual = RECEPCION_TEXTO;
+enum Estado {TELEGRAM, RECEPCION_TEXTO, IMPRESION};
+Estado estadoActual = TELEGRAM;
 
-// ---------------------------------
-// Configuración de WiFi y Bluetooth
-// ---------------------------------
-const char* ssid = "CATERPILAR";  // Nombre de la red WiFi
-const char* password = "Carranza"; // Contraseña de la red WiFi
+// -------------------------------------------
+// Configuración de WiFi, Bluetooth y Telegram
+// -------------------------------------------
+
+#define ssid "CATERPILAR"
+#define password "Carranza"
+#define TOKEN_BOT "7700109529:AAFG9bPR6z94VppwjQv6vxlj1aqDoqGCdAY"
+
 
 BluetoothSerial SerialBT;         // Objeto para la comunicación Bluetooth
 WiFiServer servidor(80);          // Servidor en el puerto 80 (HTTP)
+WiFiClientSecure cliente_seguro;
+UniversalTelegramBot bot(TOKEN_BOT, cliente_seguro);
 
 // --------------------------------------
 // Variables para manejar texto y Braille
@@ -54,7 +60,7 @@ const int matrizBraille[27][6] = {
 // --------------------
 // Variables de Control
 // --------------------
-int anguloServo[] = {102, 100, 98};// Patrones de ángulos
+int anguloServo[] = {95, 90, 85};// Patrones de ángulos
 int matrizTexto[30][6];  // Vector para almacenar el texto a imprimir en Braille
 int posicionTexto = 0;   // Posición actual en el texto
 int letraActual = 0;
@@ -62,6 +68,8 @@ int cintaFlag = 0;
 
 
 
+const unsigned long TIEMPO_ENTRE_CONSULTAS = 1000; // Tiempo entre revisiones de mensajes (ms)
+unsigned long ultima_consulta = 0; // Última vez que se revisaron mensajes
 bool columnaMostrada = false;  // Flag para mostrar la columna
 unsigned long tiempoAnterior = 0;
 bool corteActivo = false;  // Para saber si ya se ha iniciado el corte
@@ -73,9 +81,6 @@ unsigned long inicioPulsoServo = 0;
 bool textoImpreso = false;  // Flag para verificar si el texto ha sido impreso
 int stepPin1State = LOW;
 int stepPin2State = LOW;
-int stepPin3State = LOW;
-int frecuencia = 750;  // Frecuencia para los motores (Hz)
-int frecuencia_1 = 300;  // Otra frecuencia para los motores (mas frecuencia, mas velocidad y viceversa)
 int indiceAnguloServo = 0;
 unsigned long intervaloCambioServo = 500; // Cambia de ángulo cada 500 ms
 int angulo = 0;
@@ -106,7 +111,8 @@ int angulo = 0;
 // ------------------------
 // Declaración de funciones 
 // ------------------------
-
+void recibirTelegram();
+void manejarNuevosMensajes(int);
 void espera();
 void perforar();
 void moverCinta();
@@ -120,6 +126,7 @@ void moverServo();
 
 
 void setup() {
+    pinMode(pinServoControl, OUTPUT);
     // Configurar pines para Motor 1
      pinMode(stepPin1, OUTPUT);
     pinMode(dirPin1, OUTPUT);
@@ -136,9 +143,9 @@ void setup() {
     pinMode(dirPin3, OUTPUT);
     pinMode(enable3,OUTPUT);
     digitalWrite(dirPin3, HIGH);  // Fijar dirección del Motor 3
-    ledcSetup(0,frecuencia_1,8);
-    ledcSetup(1,frecuencia_1,8);
-    ledcSetup(2,frecuencia,8);
+    ledcSetup(0,200,8);
+    ledcSetup(1,1500,8);
+    ledcSetup(2,600,8);
     ledcAttachPin(stepPin1,0);
     ledcAttachPin(stepPin2,1);
     ledcAttachPin(stepPin3,2);
@@ -146,11 +153,14 @@ void setup() {
      
     Serial.begin(115200);
     conectarWiFi();
-    SerialBT.begin("ESP32_Bluetooth");
+
 }
 
 void loop() {
     switch (estadoActual) {
+        case TELEGRAM:
+            recibirTelegram();
+            break;
         case RECEPCION_TEXTO:
             recibirTexto();
             break;
@@ -160,31 +170,74 @@ void loop() {
     }
 }
 
-// Función para conectar WiFi
-// Función para conectar WiFi
 void conectarWiFi() {
-    Serial.println("Intentando conectar a WiFi...");
+    Serial.print("Conectando a la red WiFi: ");
+    Serial.println(ssid);
     WiFi.begin(ssid, password);
-    unsigned long tiempoInicio = millis();
-    const unsigned long tiempoEspera = 5000;
 
-    while (WiFi.status() != WL_CONNECTED && millis() - tiempoInicio < tiempoEspera) {
+    // Deshabilitar la verificación del certificado para pruebas
+    cliente_seguro.setInsecure();
+    cliente_seguro.setTimeout(15000); // Aumenta el tiempo de espera
+    // Conexión rápida al WiFi
+    while (WiFi.status() != WL_CONNECTED) {
+        Serial.print(".");
+        delay(300); // Intervalo reducido
+    }
+    Serial.print("\nWiFi conectado. Dirección IP: ");
+    Serial.println(WiFi.localIP());
 
+    // Configurar la sincronización de hora
+    Serial.print("Sincronizando hora...");
+    configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov", "time.google.com");
+
+    time_t ahora = time(nullptr);
+    while (ahora < 1000000000) { // Máximo 3 segundos de espera
+        delay(100); // Intervalo de verificación rápido
+        Serial.print(".");
+        ahora = time(nullptr);
     }
-    
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\nConectado a WiFi!");
-        Serial.print("Dirección IP: ");
-        Serial.println(WiFi.localIP());
-        servidor.begin();
-    } else {
-        Serial.println("\nNo se pudo conectar a WiFi.");
-    }
+    Serial.print("\nHora sincronizada: ");
+    Serial.println(ctime(&ahora));
+    servidor.begin();
 }
 
 
+
+
+
+void recibirTelegram() {
+
+    if ((millis() - ultima_consulta) > TIEMPO_ENTRE_CONSULTAS) {
+        int cantidadMensajes = bot.getUpdates(bot.last_message_received + 1);
+        while (cantidadMensajes) {
+            manejarNuevosMensajes(cantidadMensajes);
+            cantidadMensajes = bot.getUpdates(bot.last_message_received + 1);
+
+        }
+        ultima_consulta = millis();
+    }
+}
+// Función para manejar mensajes nuevos
+void manejarNuevosMensajes(int cantidadMensajes) {
+  for (int i = 0; i < cantidadMensajes; i++) {
+    String id_chat = bot.messages[i].chat_id;
+    String texto = bot.messages[i].text;
+
+    if (texto.equalsIgnoreCase("INICIAR")) {
+      Serial.println("Mensaje 'INICIAR' recibido desde Telegram.");
+      bot.sendMessage(id_chat, "Comando INICIAR recibido.");
+      estadoActual = RECEPCION_TEXTO;
+      
+    } else {
+      bot.sendMessage(id_chat, "Comando no reconocido.");
+      Serial.println("Comando no reconocido: " + texto);
+    }
+  }
+}
+
 // Función para recibir texto desde la página
 void recibirTexto() {
+
     WiFiClient cliente = servidor.available();  // Verifica si hay un cliente conectado
     if (cliente) {  // Si hay un cliente
         String peticion = cliente.readStringUntil('\r');  // Lee la solicitud del cliente
@@ -217,6 +270,7 @@ void recibirTexto() {
         }
         cliente.stop();  // Cierra la conexión con el cliente
     }
+
 }
 
 
@@ -237,82 +291,37 @@ void imprimirBraille() {
 
 // Función para perforar en la cinta
 void perforar() {
-    tiempoAnterior = 0;
-    const unsigned long intervalo = 3000;  // Intervalo de 1 segundo
-    unsigned long tiempoActual = millis(); // Obtiene el tiempo actual
-        if (letraActual >= posicionTexto) { // Marca que se ha mostrado todo el texto
-        textoImpreso = true; 
+    if (letraActual >= posicionTexto) { // Se terminó el texto
+        textoImpreso = true;
         moverCinta();
-        void espera();
-       // cortarCinta(); 
+        espera();
+        cortarCinta();
         return;
     }
     cintaFlag = 1;
     moverCinta();
-    void espera();
-    // Control de la visualización de columnas
-    if (tiempoActual - tiempoAnterior >= intervalo) {
-        if (!columnaMostrada) { // Si estamos en la primera columna
-            // Muestra primera columna 
-            // Imprime en el serial la letra y su representación en Braille
-           // Serial.print("Imprimiendo letra: ");
-           // Serial.print(textoRecibido[letraActual]);
-          //  Serial.print(" - Braille: ");
-           // Serial.print(matrizTexto[letraActual][0]);
-            angulo = 1;
-            void espera();
-            moverLeva();
-            moverServo();
-          //  Serial.print(matrizTexto[letraActual][1]);
-            angulo = 2;
-            void espera();
-            moverLeva();
-            moverServo();
-           // Serial.print(matrizTexto[letraActual][2]);       
-            angulo = 3;
-            void espera();
-            moverLeva();
-            moverServo();
-            Serial.print(" ");
-
-            columnaMostrada = true; // Cambiamos a la segunda columna
-            tiempoAnterior = tiempoActual; // Actualiza el tiempo
-        } 
-        else { // Segunda columna
-            // Mueve la cinta hasta la segunda columna
-            cintaFlag = 2;
-            void espera();
-            moverLeva();
-            moverCinta();
-          //  Serial.print(matrizTexto[letraActual][3]);
-            angulo = 1;
-            void espera();
-            moverLeva();
-            moverServo();
-           // Serial.print(matrizTexto[letraActual][4]);
-            angulo = 2;
-            void espera();
-            moverLeva();
-            moverServo();
-           // Serial.print(matrizTexto[letraActual][5]);
-            angulo = 3;
-            void espera();
-            moverLeva();
-            moverServo();
-           // Serial.println(" ");
-            tiempoAnterior = tiempoActual;
-            letraActual++; // Mueve a la siguiente letra
-            columnaMostrada = false; // Vuelve a la primera columna
+    for (int columna = 0; columna < 2; columna++) { // Itera entre las dos columnas
+        for (int fila = 0; fila < 3; fila++) { // Itera entre las tres filas
+            int posicion = columna * 3 + fila; // Calcula la posición actual en el vector braille
+            if (matrizTexto[letraActual][posicion] == 1) { // Solo perfora si hay un `1`
+                angulo = fila + 1; // Selecciona el ángulo correspondiente
+                moverServo();
+                espera();
+                moverLeva();
+            }
         }
+        cintaFlag = columna + 1; // Actualiza el flag para mover la cinta entre columnas
+        moverCinta();
+        espera();
     }
-
+    letraActual++; // Pasa a la siguiente letra
 }
 
 // Función para mover la cinta
 void moverCinta() {
     digitalWrite(enable1, LOW);
     digitalWrite(enable2, LOW);
-    const unsigned long tiempoMovCinta1 = 300;  // Tiempo para cintaFlag == 1 
+    const unsigned long tiempoMovCinta1 = 500;  // Tiempo para cintaFlag == 1 
     const unsigned long tiempoMovCinta2 = 150;  // Tiempo para cintaFlag == 2 
 
     unsigned long tiempoInicioCinta = 0;
@@ -323,119 +332,112 @@ void moverCinta() {
             // Mientras no se haya alcanzado el tiempo de movimiento, mantener el motor encendido
             ledcWrite(0, 127);  // Motor en funcionamiento
             digitalWrite(dirPin1, HIGH);  // Dirección hacia adelante
-            Serial.print("motor cinta1");
         }
 
         // Detener el motor después de que pase el tiempo especificado
         ledcWrite(0, 0);  // Detiene el motor
         digitalWrite(enable1, HIGH);  // Detiene la dirección
-        Serial.print("detener motor cinta1");
+        return;
     } else if (cintaFlag == 2) {  // Si cintaFlag es 2, mover durante más tiempo
         tiempoInicioCinta = millis();
         while (millis() - tiempoInicioCinta < tiempoMovCinta2) {
             // Mientras no se haya alcanzado el tiempo de movimiento, mantener el motor encendido
             ledcWrite(0, 127);  // Motor en funcionamiento
             digitalWrite(dirPin1, HIGH);  // Dirección hacia adelante
-            Serial.print("motor cinta2");
         }
 
         // Detener el motor después de que pase el tiempo especificado
         ledcWrite(0, 0);  // Detiene el motor
         digitalWrite(enable1, HIGH);  // Detiene la dirección
-        Serial.print("detener motor cinta2");
+        return;
     }
 }
 
 
 void moverLeva() {
     unsigned long tiempoInicioLeva = 0;
-    unsigned long tiempoMovLeva = 300; // Tiempo de movimiento para la leva
+    unsigned long tiempoMovLeva = 150; // Tiempo de movimiento para la leva
     tiempoInicioLeva = millis();  // Inicia el temporizador cuando la leva comienza a moverse
 digitalWrite(enable2, LOW);
     while (millis() - tiempoInicioLeva < tiempoMovLeva){
         ledcWrite(1, 127);  // Motor en funcionamiento
         digitalWrite(dirPin2, HIGH);  // Dirección hacia adelante
-        Serial.println("mover leva");
     }
     
     ledcWrite(1, 0);  // Detiene el motor
     digitalWrite(enable2, HIGH);  // Detiene la dirección
-    Serial.println("Leva detenida");
 
 }
+
 
 void moverServo() {
-  unsigned long tiempoActualServo = millis();  
+  int duracionPulsoServo = map(anguloServo[angulo - 1], 0, 180, 500, 2500);
+  unsigned long tiempoInicio = millis();
 
-  // Comprobamos qué ángulo activar
-  if (angulo == 1) {
-    duracionPulsoServo = map(anguloServo[0], 0, 180, 600, 2400); 
-    Serial.println("Ángulo 1");
-  } 
-  else if (angulo == 2) {
-    duracionPulsoServo = map(anguloServo[1], 0, 180, 600, 2400); 
-    Serial.println("Ángulo 2");
-  } 
-  else if (angulo == 3) {
-    duracionPulsoServo = map(anguloServo[2], 0, 180, 600, 2400); 
-    Serial.println("Ángulo 3");
-  }
-
-  // Si se ha detectado un cambio de ángulo (y se ha asignado una duración de pulso)
-  if (duracionPulsoServo > 0 && !enviandoPulsoServo) {
-    inicioPulsoServo = micros();  
-    digitalWrite(pinServoControl, HIGH);  // Inicia el pulso
-    Serial.println("servo");
-    enviandoPulsoServo = true;
-  }
-
-  // Verifica si el pulso ha pasado el tiempo de duración
-  if (enviandoPulsoServo && (micros() - inicioPulsoServo >= duracionPulsoServo)) {
-    digitalWrite(pinServoControl, LOW);  // Apaga el pulso después de la duración
-    enviandoPulsoServo = false;  // Finaliza el envío de pulso
-    Serial.println("Pulso apagado");
+  // Envía pulsos durante 500 ms para asegurar el movimiento del servo
+  while (millis() - tiempoInicio < 500) {
+    digitalWrite(pinServoControl, HIGH);
+    delayMicroseconds(duracionPulsoServo);
+    digitalWrite(pinServoControl, LOW);
+    delay(20 - (duracionPulsoServo / 1000)); // Completa el período de 20 ms
   }
 }
+
+
 
 // Función para cortar la cinta
 void cortarCinta() {
-    digitalWrite(enable3, LOW);
-     unsigned long tiempoCorte1 = 0;  // Variable global para el tiempo de corte
-     unsigned long tiempoMovCorte1 = 1000;
-    tiempoCorte1 = millis();
-    unsigned long tiempoCorte2 = 0;  // Variable global para el tiempo de corte
-    unsigned long tiempoMovCorte2 = 1000;
-    bool direccion = 0;  // Dirección de los motores
-    while (millis() - tiempoCorte1 < tiempoMovCorte1) {  
-    digitalWrite(dirPin3, direccion); 
-    ledcWrite(2, 127);  // Enciende el motor con una velocidad de 127 (ajustable)
-    }
-    ledcWrite(2, 0);
-    delay(50);
-    direccion = !direccion;
-    tiempoCorte2 = millis();
-    while (millis() - tiempoCorte2 < tiempoMovCorte2) {  
-      // Cambia la dirección cada vez;
-    digitalWrite(dirPin3, direccion);
-    }
-    digitalWrite(enable3, HIGH);
+    digitalWrite(enable3, LOW);  // Habilitar el driver
+    unsigned long tiempoCorte1 = 0;  // Variable para el tiempo del primer corte
+    unsigned long tiempoMovCorte1 = 250;  // Duración del primer movimiento
+    unsigned long tiempoCorte2 = 0;  // Variable para el tiempo del segundo corte
+    unsigned long tiempoMovCorte2 = 250;  // Duración del segundo movimiento
+    bool direccion = 0;  // Dirección inicial del motor
 
+    // Primer movimiento: hacia una dirección
+    tiempoCorte1 = millis();
+    digitalWrite(dirPin3, direccion);  // Configurar la dirección inicial
+    while (millis() - tiempoCorte1 < tiempoMovCorte1) {
+        ledcWrite(2, 127);  // Velocidad del motor
+    }
+
+    ledcWrite(2, 0);  // Detener el motor brevemente
+    delay(150);  // Pausa corta para el cambio de dirección
+
+    // Segundo movimiento: cambiar dirección
+    direccion = !direccion;  // Invertir dirección
+    tiempoCorte2 = millis();
+    digitalWrite(dirPin3, direccion);  // Cambiar dirección
+    while (millis() - tiempoCorte2 < tiempoMovCorte2) {
+        ledcWrite(2, 127);  // Velocidad del motor
+    }
+
+    ledcWrite(2, 0);  // Detener el motor
+    digitalWrite(enable3, HIGH);  // Deshabilitar el driver
 }
+
 
 
 // Función para enviar el texto por Bluetooth
 void enviarTextoPorBluetooth() {
-    if (!textoRecibido.isEmpty()) {
-        Serial.println("Enviando texto por Bluetooth...");
+    WiFi.disconnect();
+    SerialBT.begin("ESP32_Bluetooth");
+        while (!SerialBT.hasClient()) {
+        Serial.print("."); // Mostrar progreso
+        delay(300); // Intervalo de espera
+    }
         SerialBT.println("Texto recibido: " + textoRecibido);
         Serial.println("Texto enviado por Bluetooth.");
         
         textoRecibido = "";  // Limpiamos el texto después de enviarlo
-    }
+        estadoActual = RECEPCION_TEXTO;
+        SerialBT.end();
+    
 }
+
 void espera(){
 unsigned long flagespera1 = 0;  // Variable global para el tiempo de corte
-unsigned long flagespera2 = 2000;
+unsigned long flagespera2 = 500;
 flagespera1 = millis();
 while (millis() - flagespera1 < flagespera2) {  
 

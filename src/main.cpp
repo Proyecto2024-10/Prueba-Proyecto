@@ -76,8 +76,6 @@ bool textoImpreso = false;  // Flag para verificar si el texto ha sido impreso
 int stepPin1State = LOW;
 int stepPin2State = LOW;
 int stepPin3State = LOW;
-int frecuencia = 500;  // Frecuencia para los motores (Hz)
-int frecuencia_1 = 300;  // Otra frecuencia para los motores (mas frecuencia, mas velocidad y viceversa)
 int indiceAnguloServo = 0;
 unsigned long intervaloCambioServo = 500; // Cambia de ángulo cada 500 ms
 int angulo = 0;
@@ -139,9 +137,9 @@ void setup() {
     pinMode(dirPin3, OUTPUT);
     pinMode(enable3,OUTPUT);
     digitalWrite(dirPin3, HIGH);  // Fijar dirección del Motor 3
-    ledcSetup(0,frecuencia_1,8);
-    ledcSetup(1,700,8);
-    ledcSetup(2,frecuencia,8);
+    ledcSetup(0,300,8); //cinta
+    ledcSetup(1,600,8); //leva
+    ledcSetup(2,650,8); //tijera
     ledcAttachPin(stepPin1,0);
     ledcAttachPin(stepPin2,1);
     ledcAttachPin(stepPin3,2);
@@ -338,9 +336,9 @@ void moverServo() {
 void cortarCinta() {
     digitalWrite(enable3, LOW);  // Habilitar el driver
     unsigned long tiempoCorte1 = 0;  // Variable para el tiempo del primer corte
-    unsigned long tiempoMovCorte1 = 250;  // Duración del primer movimiento
+    unsigned long tiempoMovCorte1 = 300;  // Duración del primer movimiento
     unsigned long tiempoCorte2 = 0;  // Variable para el tiempo del segundo corte
-    unsigned long tiempoMovCorte2 = 250;  // Duración del segundo movimiento
+    unsigned long tiempoMovCorte2 = 150;  // Duración del segundo movimiento
     bool direccion = 0;  // Dirección inicial del motor
 
     // Primer movimiento: hacia una dirección

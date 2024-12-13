@@ -11,13 +11,8 @@ Estado estadoActual = TELEGRAM;
 // Configuración de WiFi, Bluetooth y Telegram
 // -------------------------------------------
 
-<<<<<<< HEAD
 #define ssid "CATERPILAR"
 #define password "Carranza"
-=======
-#define ssid "wifi1"
-#define password "wifi12345"
->>>>>>> 24e3c0a15962b4f404c64beb8111b0cb23dc6b64
 #define TOKEN_BOT "7700109529:AAFG9bPR6z94VppwjQv6vxlj1aqDoqGCdAY"
 
 
@@ -86,12 +81,6 @@ unsigned long inicioPulsoServo = 0;
 bool textoImpreso = false;  // Flag para verificar si el texto ha sido impreso
 int stepPin1State = LOW;
 int stepPin2State = LOW;
-<<<<<<< HEAD
-=======
-int stepPin3State = LOW;
-int frecuencia = 500;  // Frecuencia para los motores (Hz)
-int frecuencia_1 = 500;  // Otra frecuencia para los motores (mas frecuencia, mas velocidad y viceversa)
->>>>>>> 24e3c0a15962b4f404c64beb8111b0cb23dc6b64
 int indiceAnguloServo = 0;
 unsigned long intervaloCambioServo = 500; // Cambia de ángulo cada 500 ms
 int angulo = 0;
@@ -154,15 +143,9 @@ void setup() {
     pinMode(dirPin3, OUTPUT);
     pinMode(enable3,OUTPUT);
     digitalWrite(dirPin3, HIGH);  // Fijar dirección del Motor 3
-<<<<<<< HEAD
-    ledcSetup(0,200,8);
-    ledcSetup(1,1500,8);
+    ledcSetup(0,600,8);
+    ledcSetup(1,600,8);
     ledcSetup(2,600,8);
-=======
-    ledcSetup(0,frecuencia_1,8);
-    ledcSetup(1,1000,8);
-    ledcSetup(2,frecuencia,8);
->>>>>>> 24e3c0a15962b4f404c64beb8111b0cb23dc6b64
     ledcAttachPin(stepPin1,0);
     ledcAttachPin(stepPin2,1);
     ledcAttachPin(stepPin3,2);
@@ -215,10 +198,7 @@ void conectarWiFi() {
     }
     Serial.print("\nHora sincronizada: ");
     Serial.println(ctime(&ahora));
-<<<<<<< HEAD
     servidor.begin();
-=======
->>>>>>> 24e3c0a15962b4f404c64beb8111b0cb23dc6b64
 }
 
 
@@ -226,28 +206,14 @@ void conectarWiFi() {
 
 
 void recibirTelegram() {
-<<<<<<< HEAD
 
     if ((millis() - ultima_consulta) > TIEMPO_ENTRE_CONSULTAS) {
         int cantidadMensajes = bot.getUpdates(bot.last_message_received + 1);
         while (cantidadMensajes) {
-=======
-    Serial.print("1");
-
-    if ((millis() - ultima_consulta) > TIEMPO_ENTRE_CONSULTAS) {
-        Serial.print("2");
-        int cantidadMensajes = bot.getUpdates(bot.last_message_received + 1);
-        while (cantidadMensajes) {
-         Serial.print("3");
->>>>>>> 24e3c0a15962b4f404c64beb8111b0cb23dc6b64
             manejarNuevosMensajes(cantidadMensajes);
             cantidadMensajes = bot.getUpdates(bot.last_message_received + 1);
 
         }
-<<<<<<< HEAD
-=======
-        Serial.print("4");
->>>>>>> 24e3c0a15962b4f404c64beb8111b0cb23dc6b64
         ultima_consulta = millis();
     }
 }
@@ -261,10 +227,7 @@ void manejarNuevosMensajes(int cantidadMensajes) {
       Serial.println("Mensaje 'INICIAR' recibido desde Telegram.");
       bot.sendMessage(id_chat, "Comando INICIAR recibido.");
       estadoActual = RECEPCION_TEXTO;
-<<<<<<< HEAD
       
-=======
->>>>>>> 24e3c0a15962b4f404c64beb8111b0cb23dc6b64
     } else {
       bot.sendMessage(id_chat, "Comando no reconocido.");
       Serial.println("Comando no reconocido: " + texto);
@@ -393,11 +356,7 @@ void moverCinta() {
 
 void moverLeva() {
     unsigned long tiempoInicioLeva = 0;
-<<<<<<< HEAD
-    unsigned long tiempoMovLeva = 150; // Tiempo de movimiento para la leva
-=======
     unsigned long tiempoMovLeva = 350; // Tiempo de movimiento para la leva
->>>>>>> 24e3c0a15962b4f404c64beb8111b0cb23dc6b64
     tiempoInicioLeva = millis();  // Inicia el temporizador cuando la leva comienza a moverse
 digitalWrite(enable2, LOW);
     while (millis() - tiempoInicioLeva < tiempoMovLeva){
@@ -430,7 +389,7 @@ void moverServo() {
 void cortarCinta() {
     digitalWrite(enable3, LOW);  // Habilitar el driver
     unsigned long tiempoCorte1 = 0;  // Variable para el tiempo del primer corte
-    unsigned long tiempoMovCorte1 = 250;  // Duración del primer movimiento
+    unsigned long tiempoMovCorte1 = 450;  // Duración del primer movimiento
     unsigned long tiempoCorte2 = 0;  // Variable para el tiempo del segundo corte
     unsigned long tiempoMovCorte2 = 250;  // Duración del segundo movimiento
     bool direccion = 0;  // Dirección inicial del motor
@@ -459,21 +418,46 @@ void cortarCinta() {
 
 
 
-// Función para enviar el texto por Bluetooth
+// Función para enviar texto por Bluetooth
 void enviarTextoPorBluetooth() {
-    WiFi.disconnect();
-    SerialBT.begin("ESP32_Bluetooth");
-        while (!SerialBT.hasClient()) {
-        Serial.print("."); // Mostrar progreso
-        delay(300); // Intervalo de espera
+    // Desconectar WiFi de manera segura
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+    
+    // Inicializar Bluetooth
+    if (!SerialBT.begin("ESP32_Braille_Printer")) {
+        Serial.println("Inicialización de Bluetooth fallida!");
+        return;
     }
+    
+    // Esperar conexión Bluetooth con tiempo de espera
+    unsigned long tiempoInicio = millis();
+    while (!SerialBT.hasClient()) {
+        Serial.print(".");
+        delay(300);
+        if (millis() - tiempoInicio > 10000) {  // Tiempo de espera de 5 segundos
+            Serial.println("Tiempo de espera de conexión Bluetooth");
+        break;
+        }
+
+    }
+    
+    // Enviar texto
+    if (SerialBT.connected()) {
         SerialBT.println("Texto recibido: " + textoRecibido);
         Serial.println("Texto enviado por Bluetooth.");
         
-        textoRecibido = "";  // Limpiamos el texto después de enviarlo
-        estadoActual = RECEPCION_TEXTO;
-        SerialBT.end();
+        // Esperar un momento para asegurar el envío
+        delay(500);
+    }
     
+
+    // Reiniciar variables
+    textoRecibido = "";
+    estadoActual = RECEPCION_TEXTO;
+
+    // Reconectar WiFi si es necesario
+    conectarWiFi();
 }
 
 void espera(){

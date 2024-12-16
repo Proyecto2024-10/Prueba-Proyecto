@@ -143,9 +143,8 @@ void setup() {
     pinMode(dirPin3, OUTPUT);
     pinMode(enable3,OUTPUT);
     digitalWrite(dirPin3, HIGH);  // Fijar dirección del Motor 3
-<<<<<<< HEAD
-    ledcSetup(0,200,8);
-    ledcSetup(1,1500,8);
+    ledcSetup(0,600,8);
+    ledcSetup(1,500,8);
     ledcSetup(2,600,8);
     ledcAttachPin(stepPin1,0);
     ledcAttachPin(stepPin2,1);
@@ -322,7 +321,7 @@ void perforar() {
 void moverCinta() {
     digitalWrite(enable1, LOW);
     digitalWrite(enable2, LOW);
-    const unsigned long tiempoMovCinta1 = 500;  // Tiempo para cintaFlag == 1 
+    const unsigned long tiempoMovCinta1 = 300;  // Tiempo para cintaFlag == 1 
     const unsigned long tiempoMovCinta2 = 150;  // Tiempo para cintaFlag == 2 
 
     unsigned long tiempoInicioCinta = 0;
@@ -357,11 +356,7 @@ void moverCinta() {
 
 void moverLeva() {
     unsigned long tiempoInicioLeva = 0;
-<<<<<<< HEAD
-    unsigned long tiempoMovLeva = 150; // Tiempo de movimiento para la leva
-=======
-    unsigned long tiempoMovLeva = 350; // Tiempo de movimiento para la leva
->>>>>>> 24e3c0a15962b4f404c64beb8111b0cb23dc6b64
+    unsigned long tiempoMovLeva = 400; // Tiempo de movimiento para la leva
     tiempoInicioLeva = millis();  // Inicia el temporizador cuando la leva comienza a moverse
 digitalWrite(enable2, LOW);
     while (millis() - tiempoInicioLeva < tiempoMovLeva){
@@ -394,12 +389,12 @@ void moverServo() {
 void cortarCinta() {
     digitalWrite(enable3, LOW);  // Habilitar el driver
     unsigned long tiempoCorte1 = 0;  // Variable para el tiempo del primer corte
-    unsigned long tiempoMovCorte1 = 450;  // Duración del primer movimiento
+    unsigned long tiempoMovCorte1 = 200;  // Duración del primer movimiento
     unsigned long tiempoCorte2 = 0;  // Variable para el tiempo del segundo corte
-    unsigned long tiempoMovCorte2 = 250;  // Duración del segundo movimiento
+    unsigned long tiempoMovCorte2 = 200;  // Duración del segundo movimiento
     bool direccion = 0;  // Dirección inicial del motor
 
-    // Primer movimiento: hacia una dirección
+    // Primer movimiento: hacia una dirección 
     tiempoCorte1 = millis();
     digitalWrite(dirPin3, direccion);  // Configurar la dirección inicial
     while (millis() - tiempoCorte1 < tiempoMovCorte1) {
@@ -440,10 +435,6 @@ void enviarTextoPorBluetooth() {
     while (!SerialBT.hasClient()) {
         Serial.print(".");
         delay(300);
-        if (millis() - tiempoInicio > 10000) {  // Tiempo de espera de 5 segundos
-            Serial.println("Tiempo de espera de conexión Bluetooth");
-        break;
-        }
 
     }
     

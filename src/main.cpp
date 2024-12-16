@@ -143,8 +143,9 @@ void setup() {
     pinMode(dirPin3, OUTPUT);
     pinMode(enable3,OUTPUT);
     digitalWrite(dirPin3, HIGH);  // Fijar dirección del Motor 3
-    ledcSetup(0,600,8);
-    ledcSetup(1,600,8);
+<<<<<<< HEAD
+    ledcSetup(0,200,8);
+    ledcSetup(1,1500,8);
     ledcSetup(2,600,8);
     ledcAttachPin(stepPin1,0);
     ledcAttachPin(stepPin2,1);
@@ -356,7 +357,11 @@ void moverCinta() {
 
 void moverLeva() {
     unsigned long tiempoInicioLeva = 0;
+<<<<<<< HEAD
+    unsigned long tiempoMovLeva = 150; // Tiempo de movimiento para la leva
+=======
     unsigned long tiempoMovLeva = 350; // Tiempo de movimiento para la leva
+>>>>>>> 24e3c0a15962b4f404c64beb8111b0cb23dc6b64
     tiempoInicioLeva = millis();  // Inicia el temporizador cuando la leva comienza a moverse
 digitalWrite(enable2, LOW);
     while (millis() - tiempoInicioLeva < tiempoMovLeva){
